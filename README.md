@@ -1,2 +1,2 @@
 # -min-by-min-step-analyzer-.
-A Python/Streamlit web application for researchers to batch-process minute-level Fitbit datasets, reconstruct daily timeseries, and calculate customizable physical activity cadence bands and MVPA.
+This open-source tool automates the processing of minute-level step data from Fitbit devices. It eliminates the need for manual spreadsheet calculations by generating continuous 1,440-minute daily timeseries (automatically adjusting for Daylight Saving Time anomalies). Researchers can upload batch CSV/JSON files to calculate Total Daily Steps, Moderate-to-Vigorous Physical Activity (MVPA), and dynamically categorize minute-level steps into 8 customizable cadence bands.

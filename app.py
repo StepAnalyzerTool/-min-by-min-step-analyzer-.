@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import json
 from io import BytesIO
+import pytz
 
 st.set_page_config(page_title="Step Cadence Analyzer", layout="wide")
 st.title("Minute-by-Minute Step Cadence Analyzer")
@@ -10,8 +11,9 @@ st.markdown("Upload minute-level Fitbit JSON exports to automatically reconstruc
 st.sidebar.header("1. Settings")
 timezone = st.sidebar.selectbox(
     "Select Timezone (Handles DST)", 
-    ["US/Eastern", "US/Central", "US/Mountain", "US/Pacific", "UTC"]
+    ["America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "UTC"]
 )
+
 
 # NEW: Participant ID Input
 st.sidebar.header("2. Participant Information")

@@ -98,12 +98,14 @@ if uploaded_files:
         
         part_df['Cadence_Band'] = pd.cut(part_df['Steps'], bins=bins, labels=labels)
         
-        summary = part_df.groupby(['Participant_ID', 'Date', 'Cadence_Band']).size().unstack(fill_value=0)
-        
-        summary['Total_MPA_Minutes'] = summary[labels[6]]
-        summary['Total_VPA_Minutes'] = summary[labels[7]]
-        summary['Total_MVPA_Minutes'] = summary['Total_MPA_Minutes'] + summary['Total_VPA_Minutes']
-        summary['Total_Daily_Steps'] = part_df.groupby(['Participant_ID', 'Date'])['Steps'].sum()
+        summary = part_df.groupby(['Participant_ID', 'Date', 'Cadence_Band'], observed=False).size().unstack(fill_value=0)
+summary = summary.reindex(columns=labels, fill_value=0)
+
+summary['Total_MPA_Minutes'] = summary[labels[6]]
+summary['Total_VPA_Minutes'] = summary[labels[7]]
+summary['Total_MVPA_Minutes'] = summary['Total_MPA_Minutes'] + summary['Total_VPA_Minutes']
+summary['Total_Daily_Steps'] = part_df.groupby(['Participant_ID', 'Date'])['Steps'].sum()
+
         
         column_order = [
             'Total_Daily_Steps',

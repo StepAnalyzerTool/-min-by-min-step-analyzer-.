@@ -39,15 +39,33 @@ if uploaded_files:
     
     all_raw_dfs = []
 
-    # 1. READ ALL FILES AND COMBINE FIRST
+    # 1. READ ALL FILES AND COMBINE FIRST (WITH SCHEMA VALIDATION)
     for file in uploaded_files:
-        data = json.load(file)
-        if not data:
+        try:
+            data = json.load(file)
+        except Exception:
+            st.warning(f"⚠️ Skipping `{file.name}`: Not a valid JSON file.")
+            continue
+            
+        if not data or not isinstance(data, list):
+            st.warning(f"⚠️ Skipping `{file.name}`: File is empty or not in the expected Fitbit format.")
             continue
             
         temp_df = pd.DataFrame(data)
-        temp_df['value'] = temp_df['value'].astype(int)
-        temp_df['dateTime'] = pd.to_datetime(temp_df['dateTime'])
+        
+        # Check if the required Fitbit columns actually exist in this file
+        if 'dateTime' not in temp_df.columns or 'value' not in temp_df.columns:
+            st.warning(f"⚠️ Skipping `{file.name}`: Missing 'dateTime' or 'value' columns. Are you sure this is a steps file?")
+            continue
+            
+        # Try to convert types, catch any weird text values that aren't numbers
+        try:
+            temp_df['value'] = temp_df['value'].astype(int)
+            temp_df['dateTime'] = pd.to_datetime(temp_df['dateTime'])
+        except Exception as e:
+            st.warning(f"⚠️ Skipping `{file.name}`: Data formatting error. ({e})")
+            continue
+            
         all_raw_dfs.append(temp_df)
         
     if all_raw_dfs:
@@ -138,3 +156,5 @@ if uploaded_files:
         with col2:
             csv_min_by_min = final_min_by_min.to_csv(index=False).encode('utf-8')
             st.download_button("📥 Download Minute-by-Minute Data (CSV)", data=csv_min_by_min, file_name=f"{manual_participant_id}_Min_by_Min.csv", mime="text/csv")
+    else:
+        st.error("No valid Fitbit data found in the uploaded files. Please check your files and try again.")

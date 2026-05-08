@@ -14,8 +14,6 @@ timezone = st.sidebar.selectbox(
     ["America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "UTC"]
 )
 
-
-# NEW: Participant ID Input
 st.sidebar.header("2. Participant Information")
 manual_participant_id = st.sidebar.text_input("Enter Participant ID", value="Participant_1")
 
@@ -73,9 +71,7 @@ if uploaded_files:
             
             day_full = day_data.reindex(daily_index, fill_value=0)
             
-            # Apply the manually entered ID instead of parsing the filename
             day_full['Participant_ID'] = manual_participant_id
-            
             day_full['Date'] = date.date()
             day_full['Time'] = day_full.index.time
             day_full = day_full.rename(columns={'value': 'Steps'})
@@ -99,13 +95,12 @@ if uploaded_files:
         part_df['Cadence_Band'] = pd.cut(part_df['Steps'], bins=bins, labels=labels)
         
         summary = part_df.groupby(['Participant_ID', 'Date', 'Cadence_Band'], observed=False).size().unstack(fill_value=0)
-summary = summary.reindex(columns=labels, fill_value=0)
-
-summary['Total_MPA_Minutes'] = summary[labels[6]]
-summary['Total_VPA_Minutes'] = summary[labels[7]]
-summary['Total_MVPA_Minutes'] = summary['Total_MPA_Minutes'] + summary['Total_VPA_Minutes']
-summary['Total_Daily_Steps'] = part_df.groupby(['Participant_ID', 'Date'])['Steps'].sum()
-
+        summary = summary.reindex(columns=labels, fill_value=0)
+        
+        summary['Total_MPA_Minutes'] = summary[labels[6]]
+        summary['Total_VPA_Minutes'] = summary[labels[7]]
+        summary['Total_MVPA_Minutes'] = summary['Total_MPA_Minutes'] + summary['Total_VPA_Minutes']
+        summary['Total_Daily_Steps'] = part_df.groupby(['Participant_ID', 'Date'])['Steps'].sum()
         
         column_order = [
             'Total_Daily_Steps',
@@ -122,8 +117,6 @@ summary['Total_Daily_Steps'] = part_df.groupby(['Participant_ID', 'Date'])['Step
         all_min_by_min.append(part_df[['Participant_ID', 'Date', 'Time', 'Steps', 'Cadence_Band']])
 
     final_summary = pd.concat(all_summaries)
-    
-    # Sort the summary chronologically by date just to make it extra clean
     final_summary = final_summary.sort_values(by='Date')
     
     final_min_by_min = pd.concat(all_min_by_min)

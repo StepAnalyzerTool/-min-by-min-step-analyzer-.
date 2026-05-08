@@ -37,24 +37,34 @@ uploaded_files = st.sidebar.file_uploader(
 if uploaded_files:
     st.write(f"### Processing {len(uploaded_files)} file(s) for {manual_participant_id}...")
     
-    all_summaries = []
-    all_min_by_min = []
+    all_raw_dfs = []
 
+    # 1. READ ALL FILES AND COMBINE FIRST
     for file in uploaded_files:
         data = json.load(file)
         if not data:
             continue
             
-        df = pd.DataFrame(data)
-        df['value'] = df['value'].astype(int)
-        df['dateTime'] = pd.to_datetime(df['dateTime'])
+        temp_df = pd.DataFrame(data)
+        temp_df['value'] = temp_df['value'].astype(int)
+        temp_df['dateTime'] = pd.to_datetime(temp_df['dateTime'])
+        all_raw_dfs.append(temp_df)
         
+    if all_raw_dfs:
+        # Combine everything into one master dataframe
+        df = pd.concat(all_raw_dfs)
+        
+        # Drop duplicate timestamps in case files overlap exactly
+        df = df.drop_duplicates(subset=['dateTime'])
+        
+        # Localize timezone
         df = df.set_index('dateTime').tz_localize(timezone, ambiguous=True, nonexistent='shift_forward')
         df = df[df.index.notna()]
         
         unique_dates = df.index.normalize().unique()
         participant_full_timeseries = []
 
+        # 2. RECONSTRUCT CONTINUOUS TIMELINES PER DAY
         for date in unique_dates:
             if pd.isna(date):
                 continue
@@ -80,6 +90,7 @@ if uploaded_files:
 
         part_df = pd.concat(participant_full_timeseries)
         
+        # 3. CALCULATE BANDS AND SUMMARIES
         bins = [-1, band2-1, band3-1, band4-1, band5-1, band6-1, band7-1, band8-1, 9999]
         labels = [
             'Band 1 (0)', 
@@ -111,24 +122,19 @@ if uploaded_files:
             labels[4], labels[5], labels[6], labels[7]
         ]
         
-        summary = summary[column_order]
+        final_summary = summary[column_order].reset_index()
+        final_summary = final_summary.sort_values(by='Date')
         
-        all_summaries.append(summary)
-        all_min_by_min.append(part_df[['Participant_ID', 'Date', 'Time', 'Steps', 'Cadence_Band']])
+        final_min_by_min = part_df[['Participant_ID', 'Date', 'Time', 'Steps', 'Cadence_Band']]
 
-    final_summary = pd.concat(all_summaries)
-    final_summary = final_summary.sort_values(by='Date')
-    
-    final_min_by_min = pd.concat(all_min_by_min)
+        st.success("Analysis Complete!")
+        st.write("### Daily Summary Preview")
+        st.dataframe(final_summary)
 
-    st.success("Analysis Complete!")
-    st.write("### Daily Summary Preview")
-    st.dataframe(final_summary)
-
-    col1, col2 = st.columns(2)
-    with col1:
-        csv_summary = final_summary.to_csv().encode('utf-8')
-        st.download_button("📥 Download Daily Summaries (CSV)", data=csv_summary, file_name=f"{manual_participant_id}_Daily_Summaries.csv", mime="text/csv")
-    with col2:
-        csv_min_by_min = final_min_by_min.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Download Minute-by-Minute Data (CSV)", data=csv_min_by_min, file_name=f"{manual_participant_id}_Min_by_Min.csv", mime="text/csv")
+        col1, col2 = st.columns(2)
+        with col1:
+            csv_summary = final_summary.to_csv(index=False).encode('utf-8')
+            st.download_button("📥 Download Daily Summaries (CSV)", data=csv_summary, file_name=f"{manual_participant_id}_Daily_Summaries.csv", mime="text/csv")
+        with col2:
+            csv_min_by_min = final_min_by_min.to_csv(index=False).encode('utf-8')
+            st.download_button("📥 Download Minute-by-Minute Data (CSV)", data=csv_min_by_min, file_name=f"{manual_participant_id}_Min_by_Min.csv", mime="text/csv")

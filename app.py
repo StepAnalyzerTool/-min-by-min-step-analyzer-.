@@ -75,7 +75,7 @@ if uploaded_files:
         # Drop duplicate timestamps in case files overlap exactly
         df = df.drop_duplicates(subset=['dateTime'])
         
-        # Localize timezone
+        # Localize timezone (handles ambiguous hours during DST transitions)
         df = df.set_index('dateTime').tz_localize(timezone, ambiguous=True, nonexistent='shift_forward')
         df = df[df.index.notna()]
         
@@ -87,9 +87,10 @@ if uploaded_files:
             if pd.isna(date):
                 continue
                 
+            # FIX: Use DateOffset instead of Timedelta to respect 23, 24, or 25 hour calendar days!
             daily_index = pd.date_range(
                 start=date, 
-                end=date + pd.Timedelta(days=1) - pd.Timedelta(minutes=1), 
+                end=date + pd.DateOffset(days=1) - pd.Timedelta(minutes=1), 
                 freq='min', 
                 tz=timezone
             )

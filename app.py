@@ -6,7 +6,61 @@ import pytz
 
 st.set_page_config(page_title="Step Cadence Analyzer", layout="wide")
 st.title("Minute-by-Minute Step Cadence Analyzer")
-st.markdown("Upload minute-level Fitbit JSON exports to automatically reconstruct daily timeseries and calculate cadence bands/MVPA.")
+
+# --- INSTRUCTIONS SECTION ---
+with st.expander("📋 How to Use This Tool", expanded=True):
+    st.markdown("""
+    This application processes raw, minute-by-minute step data exported from Fitbit devices 
+    and automatically calculates daily physical activity summaries based on step cadence bands.
+    
+    ---
+    
+    **Step 1: Export Your Fitbit Data**
+    
+    Visit the [Fitbit Data Export Help Page](https://support.google.com/googlehealth/answer/14236615?hl=en) 
+    for step-by-step instructions on downloading your Fitbit data archive. Note that instructions 
+    may vary slightly depending on whether the participant signs in with a Google Account or a 
+    Fitbit login.
+    
+    Once downloaded, unzip the archive and locate the **"Physical Activity"** folder. 
+    You will be uploading the files named **"steps-YYYY-MM-DD.json"** (e.g., steps-2012-10-01.json) 
+    from that folder.
+    
+    ---
+    
+    **Step 2: Configure Settings**
+    
+    Use the sidebar on the left to:
+    - Select the **timezone** that matches the participant's location during data collection
+    - Enter a unique **Participant ID** (this label will appear in your output files)
+    - Adjust the **cadence band thresholds** if your study uses custom step-rate criteria 
+    (default values are pre-loaded based on published guidelines)
+    
+    ---
+    
+    **Step 3: Upload Files and Download Results**
+    
+    Upload all JSON step files for the participant using the file uploader in the sidebar. 
+    The app will automatically process the data and display a preview of the daily summary. 
+    Download your results using the buttons that appear below the preview.
+    
+    Two output files are provided:
+    - 📄 **Daily Summary:** Total steps, minutes in each cadence band, and total MVPA minutes per calendar day
+    - 📄 **Minute-by-Minute Log:** A complete chronological record of step counts and cadence band assignments
+    
+    ---
+    
+    **Step 4: Processing a New Participant**
+    
+    To prevent data from one participant from carrying over to the next, 
+    **refresh your browser before uploading files for a new participant.** 
+    This clears the session and fully resets all settings.
+    
+    ---
+    
+    ⚠️ *This tool does not store, save, or transmit any uploaded data. All files are 
+    processed temporarily and deleted automatically when the browser is refreshed or closed.*
+    """)
 
 st.sidebar.header("1. Settings")
 timezone = st.sidebar.selectbox(
@@ -53,12 +107,10 @@ if uploaded_files:
             
         temp_df = pd.DataFrame(data)
         
-        # Check if the required Fitbit columns actually exist in this file
         if 'dateTime' not in temp_df.columns or 'value' not in temp_df.columns:
             st.warning(f"⚠️ Skipping `{file.name}`: Missing 'dateTime' or 'value' columns. Are you sure this is a steps file?")
             continue
             
-        # Try to convert types, catch any weird text values that aren't numbers
         try:
             temp_df['value'] = temp_df['value'].astype(int)
             temp_df['dateTime'] = pd.to_datetime(temp_df['dateTime'])
@@ -69,13 +121,8 @@ if uploaded_files:
         all_raw_dfs.append(temp_df)
         
     if all_raw_dfs:
-        # Combine everything into one master dataframe
         df = pd.concat(all_raw_dfs)
-        
-        # Drop duplicate timestamps in case files overlap exactly
         df = df.drop_duplicates(subset=['dateTime'])
-        
-        # Localize timezone (handles ambiguous hours during DST transitions)
         df = df.set_index('dateTime').tz_localize(timezone, ambiguous=True, nonexistent='shift_forward')
         df = df[df.index.notna()]
         
@@ -87,7 +134,6 @@ if uploaded_files:
             if pd.isna(date):
                 continue
                 
-            # FIX: Use DateOffset instead of Timedelta to respect 23, 24, or 25 hour calendar days!
             daily_index = pd.date_range(
                 start=date, 
                 end=date + pd.DateOffset(days=1) - pd.Timedelta(minutes=1), 
@@ -97,7 +143,6 @@ if uploaded_files:
             
             day_data = df[df.index.normalize() == date]
             day_data = day_data[~day_data.index.duplicated(keep='first')]
-            
             day_full = day_data.reindex(daily_index, fill_value=0)
             
             day_full['Participant_ID'] = manual_participant_id
@@ -146,7 +191,7 @@ if uploaded_files:
         
         final_min_by_min = part_df[['Participant_ID', 'Date', 'Time', 'Steps', 'Cadence_Band']]
 
-        st.success("Analysis Complete!")
+        st.success("✅ Analysis Complete!")
         st.write("### Daily Summary Preview")
         st.dataframe(final_summary)
 
@@ -158,4 +203,4 @@ if uploaded_files:
             csv_min_by_min = final_min_by_min.to_csv(index=False).encode('utf-8')
             st.download_button("📥 Download Minute-by-Minute Data (CSV)", data=csv_min_by_min, file_name=f"{manual_participant_id}_Min_by_Min.csv", mime="text/csv")
     else:
-        st.error("No valid Fitbit data found in the uploaded files. Please check your files and try again.")
+        st.error("❌ No valid Fitbit data found in the uploaded files. Please check your files and try again.")

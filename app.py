@@ -74,7 +74,7 @@ st.sidebar.header("2. Participant Information")
 manual_participant_id = st.sidebar.text_input("Enter Participant ID", value="Participant_1")
 
 st.sidebar.header("3. Cadence Thresholds (spm)")
-st.sidebar.markdown("Most researchers need only MPA and VPA. Adjust Bands 1–5 if your study uses custom step-rate criteria.")
+st.sidebar.markdown("MPA and VPA are listed first, followed by additional cadence bands. Adjust the values if your study uses custom step-rate criteria.")
 mpa = st.sidebar.number_input("MPA (Moderate Physical Activity) lower limit", value=100)
 vpa = st.sidebar.number_input("VPA (Vigorous Physical Activity) lower limit", value=120)
 st.sidebar.markdown("---")

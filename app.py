@@ -44,6 +44,10 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     - Enter a unique **Participant ID** (this label will appear in your output files)
     - Adjust the **cadence band thresholds** if your study uses custom step-rate criteria
       (default values are pre-loaded based on published guidelines)
+
+    Fitbit minute-level step timestamps are interpreted as UTC and converted to the confirmed
+    participant timezone before daily and hourly summaries are calculated. This conversion
+    automatically applies the correct daylight-saving offset for each date.
     
     ---
     
@@ -135,9 +139,13 @@ st.sidebar.header("2. Participant Information")
 manual_participant_id = st.sidebar.text_input("Enter Participant ID", value="Participant_1")
 
 st.sidebar.header("3. Cadence Thresholds (spm)")
-st.sidebar.markdown("MPA and VPA are listed first, followed by additional cadence bands. Adjust the values if your study uses custom step-rate criteria.")
+st.sidebar.markdown(
+    "MPA and VPA are listed first, followed by additional cadence bands. "
+    "The default VPA threshold is 130 steps/minute. Adjust the values if your "
+    "study uses different criteria."
+)
 mpa = st.sidebar.number_input("MPA (Moderate Physical Activity) lower limit", value=100)
-vpa = st.sidebar.number_input("VPA (Vigorous Physical Activity) lower limit", value=120)
+vpa = st.sidebar.number_input("VPA (Vigorous Physical Activity) lower limit", value=130)
 st.sidebar.markdown("---")
 b1 = st.sidebar.number_input("Band 1 (Incidental) lower limit", value=1)
 b2 = st.sidebar.number_input("Band 2 (Sporadic) lower limit", value=20)
@@ -192,7 +200,14 @@ elif uploaded_files:
 
         try:
             temp_df['value'] = temp_df['value'].astype(int)
-            temp_df['dateTime'] = pd.to_datetime(temp_df['dateTime'])
+            # Fitbit account-export step timestamps are interpreted as UTC.
+            # The UTC-aware values are converted to the participant's confirmed
+            # timezone after all uploaded files are combined.
+            temp_df['dateTime'] = pd.to_datetime(
+                temp_df['dateTime'],
+                errors='raise',
+                utc=True
+            )
         except Exception as e:
             st.warning(f"⚠️ Skipping `{file.name}`: Data formatting error. ({e})")
             continue
@@ -202,7 +217,7 @@ elif uploaded_files:
     if all_raw_dfs:
         df = pd.concat(all_raw_dfs)
         df = df.drop_duplicates(subset=['dateTime'])
-        df = df.set_index('dateTime').tz_localize(timezone, ambiguous=True, nonexistent='shift_forward')
+        df = df.set_index('dateTime').tz_convert(timezone)
         df = df[df.index.notna()]
 
         unique_dates = df.index.normalize().unique()
@@ -320,6 +335,10 @@ elif uploaded_files:
 
         # 6. DISPLAY RESULTS AND DOWNLOAD BUTTONS
         st.success("✅ Analysis Complete!")
+        st.caption(
+            f"Source timestamps were interpreted as UTC and converted to {timezone} "
+            "before aggregation. Date-specific daylight-saving offsets were applied automatically."
+        )
         st.write("### Daily Summary Preview")
         st.dataframe(final_summary)
 

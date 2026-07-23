@@ -51,10 +51,14 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     
     ---
     
-    **Step 3: Upload Files and Download Results**
+    **Step 3: Upload Files and Select the Analysis Dates**
     
-    Upload all JSON step files for the participant using the file uploader in the sidebar. 
-    The app will automatically process the data and display a preview of the daily summary. 
+    Upload all JSON step files for the participant using the file uploader in the sidebar.
+    After the files are read and converted to local time, the app will display the earliest
+    and latest available dates. Select the intended analysis start and end dates, then confirm
+    the range. The same selected date range will be applied to all three output files.
+
+    The app will then process the selected dates and display a preview of the daily summary.
     Download your results using the buttons that appear below the preview.
     
     Three output files are provided:
@@ -176,7 +180,7 @@ if uploaded_files and not timezone_confirmed:
     )
 
 elif uploaded_files:
-    st.write(f"### Processing {len(uploaded_files)} file(s) for {manual_participant_id}...")
+    st.write(f"### Reading {len(uploaded_files)} file(s) for {manual_participant_id}...")
 
     all_raw_dfs = []
 
@@ -219,6 +223,71 @@ elif uploaded_files:
         df = df.drop_duplicates(subset=['dateTime'])
         df = df.set_index('dateTime').tz_convert(timezone)
         df = df[df.index.notna()]
+
+        earliest_available_date = df.index.min().date()
+        latest_available_date = df.index.max().date()
+
+        st.write("### Select Analysis Date Range")
+        st.info(
+            f"Available local dates: **{earliest_available_date:%B %d, %Y}** "
+            f"through **{latest_available_date:%B %d, %Y}**"
+        )
+
+        date_col1, date_col2 = st.columns(2)
+        with date_col1:
+            analysis_start_date = st.date_input(
+                "Analysis start date",
+                value=earliest_available_date,
+                min_value=earliest_available_date,
+                max_value=latest_available_date
+            )
+        with date_col2:
+            analysis_end_date = st.date_input(
+                "Analysis end date",
+                value=latest_available_date,
+                min_value=earliest_available_date,
+                max_value=latest_available_date
+            )
+
+        valid_date_range = analysis_start_date <= analysis_end_date
+        if not valid_date_range:
+            st.error("❌ The analysis start date must be on or before the end date.")
+
+        date_range_confirmed = st.checkbox(
+            (
+                "I confirm that the analysis should include "
+                f"{analysis_start_date:%B %d, %Y} through "
+                f"{analysis_end_date:%B %d, %Y}"
+            ),
+            value=False,
+            disabled=not valid_date_range
+        )
+
+        if valid_date_range:
+            local_dates = pd.Series(df.index.date, index=df.index)
+            selected_date_mask = (
+                (local_dates >= analysis_start_date)
+                & (local_dates <= analysis_end_date)
+            )
+            selected_df = df.loc[selected_date_mask.to_numpy()]
+        else:
+            selected_df = df.iloc[0:0]
+
+        if valid_date_range and selected_df.empty:
+            st.error("❌ No step records were found within the selected date range.")
+
+        if not date_range_confirmed:
+            st.info("Confirm the analysis date range to generate the three output files.")
+            st.stop()
+
+        if selected_df.empty:
+            st.stop()
+
+        df = selected_df
+        st.write(
+            f"### Processing {analysis_start_date:%B %d, %Y} through "
+            f"{analysis_end_date:%B %d, %Y}..."
+        )
 
         unique_dates = df.index.normalize().unique()
         participant_full_timeseries = []
@@ -299,6 +368,33 @@ elif uploaded_files:
         excel_buffer = BytesIO()
         with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
 
+            analysis_information = pd.DataFrame({
+                'Setting': [
+                    'Participant ID',
+                    'Available start date',
+                    'Available end date',
+                    'Selected analysis start date',
+                    'Selected analysis end date',
+                    'Participant timezone',
+                    'Timestamp processing'
+                ],
+                'Value': [
+                    manual_participant_id,
+                    earliest_available_date.isoformat(),
+                    latest_available_date.isoformat(),
+                    analysis_start_date.isoformat(),
+                    analysis_end_date.isoformat(),
+                    timezone,
+                    (
+                        "Source timestamps interpreted as UTC and converted "
+                        "to the participant timezone before aggregation"
+                    )
+                ]
+            })
+            analysis_information.to_excel(
+                writer, sheet_name='Analysis Information', index=False
+            )
+
             # Tab 1: Total Steps per Hour
             hourly_steps = part_df.groupby(['Date', 'Hour'])['Steps'].sum().unstack(fill_value=0)
             hourly_steps = hourly_steps.reindex(index=all_dates, fill_value=0)
@@ -337,7 +433,9 @@ elif uploaded_files:
         st.success("✅ Analysis Complete!")
         st.caption(
             f"Source timestamps were interpreted as UTC and converted to {timezone} "
-            "before aggregation. Date-specific daylight-saving offsets were applied automatically."
+            "before aggregation. Date-specific daylight-saving offsets were applied automatically. "
+            f"All outputs include {analysis_start_date:%B %d, %Y} through "
+            f"{analysis_end_date:%B %d, %Y}."
         )
         st.write("### Daily Summary Preview")
         st.dataframe(final_summary)

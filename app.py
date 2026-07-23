@@ -43,9 +43,9 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     the sidebar to:
     - Enter a unique **Participant ID** (this label will appear in your output files)
     - Adjust the **cadence band thresholds** if your study uses custom step-rate criteria
-      (default values and names follow Tudor-Locke et al.<sup>1</sup>)
+      (default values and names follow Tudor-Locke et al.¹)
     - Adjust the **MPA and VPA thresholds** if your study uses different intensity
-      criteria (defaults: MPA ≥100 spm and VPA ≥130 spm)<sup>2</sup>
+      criteria (defaults: MPA ≥100 spm and VPA ≥130 spm)²
 
     Fitbit minute-level step timestamps are interpreted as UTC and converted to the confirmed
     participant timezone before daily and hourly summaries are calculated. This conversion
@@ -85,12 +85,12 @@ with st.expander("📋 How to Use This Tool", expanded=True):
 
     **References for Default Settings**
 
-    <sup>1</sup> Tudor-Locke, C., Camhi, S. M., Leonardi, C., Johnson, W. D.,
+    ¹ Tudor-Locke, C., Camhi, S. M., Leonardi, C., Johnson, W. D.,
     Katzmarzyk, P. T., Earnest, C. P., & Church, T. S. (2011). Patterns of adult
     stepping cadence in the 2005–2006 NHANES. *Preventive Medicine, 53*(3),
     178–181. https://doi.org/10.1016/j.ypmed.2011.06.004
 
-    <sup>2</sup> O'Brien, M. W., Kivell, M. J., Wojcik, W. R., D'Entremont, G.,
+    ² O'Brien, M. W., Kivell, M. J., Wojcik, W. R., D'Entremont, G.,
     Kimmerly, D. S., & Fowles, J. R. (2018). Step rate thresholds associated
     with moderate and vigorous physical activity in adults. *International
     Journal of Environmental Research and Public Health, 15*(11), 2454.

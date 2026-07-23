@@ -43,7 +43,9 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     the sidebar to:
     - Enter a unique **Participant ID** (this label will appear in your output files)
     - Adjust the **cadence band thresholds** if your study uses custom step-rate criteria
-      (default values are pre-loaded based on published guidelines)
+      (default values and names follow Tudor-Locke et al.<sup>1</sup>)
+    - Adjust the **MPA and VPA thresholds** if your study uses different intensity
+      criteria (defaults: MPA ≥100 spm and VPA ≥130 spm)<sup>2</sup>
 
     Fitbit minute-level step timestamps are interpreted as UTC and converted to the confirmed
     participant timezone before daily and hourly summaries are calculated. This conversion
@@ -62,9 +64,9 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     Download your results using the buttons that appear below the preview.
     
     Three output files are provided:
-    - 📄 **Daily Summary (CSV):** Total steps, minutes in each cadence band, and total MVPA minutes per calendar day
-    - 📄 **Minute-by-Minute Log (CSV):** A complete chronological record of step counts and cadence band assignments
-    - 📊 **Hourly Analysis (Excel):** Total steps and minutes per cadence band broken down by hour of day, with one tab per band
+    - 📄 **Daily Summary (CSV):** Total steps; minutes in each of the eight Tudor-Locke cadence bands; and MPA, VPA, and total MVPA minutes per calendar day
+    - 📄 **Minute-by-Minute Log (CSV):** A complete chronological record with both the cadence-band and intensity classification for each minute
+    - 📊 **Hourly Analysis (Excel):** Total steps and minutes per cadence band broken down by hour of day, with separate MPA and VPA tabs
     
     ---
     
@@ -78,6 +80,21 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     
     ⚠️ *This tool does not store, save, or transmit any uploaded data. All files are 
     processed temporarily and deleted automatically when the browser is refreshed or closed.*
+
+    ---
+
+    **References for Default Settings**
+
+    <sup>1</sup> Tudor-Locke, C., Camhi, S. M., Leonardi, C., Johnson, W. D.,
+    Katzmarzyk, P. T., Earnest, C. P., & Church, T. S. (2011). Patterns of adult
+    stepping cadence in the 2005–2006 NHANES. *Preventive Medicine, 53*(3),
+    178–181. https://doi.org/10.1016/j.ypmed.2011.06.004
+
+    <sup>2</sup> O'Brien, M. W., Kivell, M. J., Wojcik, W. R., D'Entremont, G.,
+    Kimmerly, D. S., & Fowles, J. R. (2018). Step rate thresholds associated
+    with moderate and vigorous physical activity in adults. *International
+    Journal of Environmental Research and Public Health, 15*(11), 2454.
+    https://doi.org/10.3390/ijerph15112454
     """)
 
 # --- SIDEBAR ---
@@ -142,22 +159,28 @@ timezone_confirmed = st.sidebar.checkbox(
 st.sidebar.header("2. Participant Information")
 manual_participant_id = st.sidebar.text_input("Enter Participant ID", value="Participant_1")
 
-st.sidebar.header("3. Cadence Thresholds (spm)")
+st.sidebar.header("3. Intensity Thresholds (spm)")
 st.sidebar.markdown(
-    "MPA and VPA are listed first, followed by additional cadence bands. "
-    "The default VPA threshold is 130 steps/minute. Adjust the values if your "
-    "study uses different criteria."
+    "Default intensity thresholds are MPA ≥100 spm and VPA ≥130 spm "
+    "(O'Brien et al., 2018)."
 )
 mpa = st.sidebar.number_input("MPA (Moderate Physical Activity) lower limit", value=100)
 vpa = st.sidebar.number_input("VPA (Vigorous Physical Activity) lower limit", value=130)
-st.sidebar.markdown("---")
-b1 = st.sidebar.number_input("Band 1 (Incidental) lower limit", value=1)
-b2 = st.sidebar.number_input("Band 2 (Sporadic) lower limit", value=20)
-b3 = st.sidebar.number_input("Band 3 (Purposeful) lower limit", value=40)
-b4 = st.sidebar.number_input("Band 4 (Slow) lower limit", value=60)
-b5 = st.sidebar.number_input("Band 5 (Medium) lower limit", value=80)
 
-st.sidebar.header("4. Data Upload")
+st.sidebar.header("4. Cadence Band Thresholds (spm)")
+st.sidebar.markdown(
+    "Default band names and thresholds follow Tudor-Locke et al. (2011)."
+)
+st.sidebar.markdown("---")
+b1 = st.sidebar.number_input("Incidental movement lower limit", value=1)
+b2 = st.sidebar.number_input("Sporadic movement lower limit", value=20)
+b3 = st.sidebar.number_input("Purposeful steps lower limit", value=40)
+b4 = st.sidebar.number_input("Slow walking lower limit", value=60)
+b5 = st.sidebar.number_input("Medium walking lower limit", value=80)
+b6 = st.sidebar.number_input("Brisk walking lower limit", value=100)
+b7 = st.sidebar.number_input("Faster locomotion/ambulation lower limit", value=120)
+
+st.sidebar.header("5. Data Upload")
 uploaded_files = st.sidebar.file_uploader(
     "Upload Fitbit JSON files",
     type=['json'],
@@ -320,24 +343,30 @@ elif uploaded_files:
         # Add hour column for hourly Excel output
         part_df['Hour'] = part_df.index.hour
 
-        # 3. DEFINE BINS AND LABELS
-        bins = [-1, b1-1, b2-1, b3-1, b4-1, b5-1, mpa-1, vpa-1, 9999]
+        # 3. DEFINE TUDOR-LOCKE CADENCE BINS AND INTENSITY CLASSIFICATIONS
+        bins = [-1, b1-1, b2-1, b3-1, b4-1, b5-1, b6-1, b7-1, 9999]
 
         mpa_label = f'MPA ({mpa}-{vpa-1} spm)'
         vpa_label = f'VPA ({vpa}+ spm)'
 
         labels = [
-            'Sedentary (0 spm)',
-            f'Band 1 - Incidental ({b1}-{b2-1} spm)',
-            f'Band 2 - Sporadic ({b2}-{b3-1} spm)',
-            f'Band 3 - Purposeful ({b3}-{b4-1} spm)',
-            f'Band 4 - Slow ({b4}-{b5-1} spm)',
-            f'Band 5 - Medium ({b5}-{mpa-1} spm)',
-            mpa_label,
-            vpa_label
+            'Non-movement (0 spm)',
+            f'Incidental movement ({b1}-{b2-1} spm)',
+            f'Sporadic movement ({b2}-{b3-1} spm)',
+            f'Purposeful steps ({b3}-{b4-1} spm)',
+            f'Slow walking ({b4}-{b5-1} spm)',
+            f'Medium walking ({b5}-{b6-1} spm)',
+            f'Brisk walking ({b6}-{b7-1} spm)',
+            f'Faster locomotion ({b7}+ spm)'
         ]
 
         part_df['Cadence_Band'] = pd.cut(part_df['Steps'], bins=bins, labels=labels)
+        part_df['Intensity_Category'] = 'Below MPA threshold'
+        part_df.loc[
+            (part_df['Steps'] >= mpa) & (part_df['Steps'] < vpa),
+            'Intensity_Category'
+        ] = mpa_label
+        part_df.loc[part_df['Steps'] >= vpa, 'Intensity_Category'] = vpa_label
 
         # 4. CALCULATE DAILY SUMMARIES
         summary = part_df.groupby(
@@ -345,8 +374,14 @@ elif uploaded_files:
         ).size().unstack(fill_value=0)
         summary = summary.reindex(columns=labels, fill_value=0)
 
-        summary['Total_MPA_Minutes'] = summary[mpa_label]
-        summary['Total_VPA_Minutes'] = summary[vpa_label]
+        daily_intensity = part_df.groupby(['Participant_ID', 'Date']).agg(
+            Total_MPA_Minutes=(
+                'Steps', lambda values: ((values >= mpa) & (values < vpa)).sum()
+            ),
+            Total_VPA_Minutes=('Steps', lambda values: (values >= vpa).sum())
+        )
+        summary['Total_MPA_Minutes'] = daily_intensity['Total_MPA_Minutes']
+        summary['Total_VPA_Minutes'] = daily_intensity['Total_VPA_Minutes']
         summary['Total_MVPA_Minutes'] = summary['Total_MPA_Minutes'] + summary['Total_VPA_Minutes']
         summary['Total_Daily_Steps'] = part_df.groupby(['Participant_ID', 'Date'])['Steps'].sum()
 
@@ -360,7 +395,16 @@ elif uploaded_files:
         final_summary = summary[column_order].reset_index()
         final_summary = final_summary.sort_values(by='Date')
 
-        final_min_by_min = part_df[['Participant_ID', 'Date', 'Time', 'Steps', 'Cadence_Band']]
+        final_min_by_min = part_df[
+            [
+                'Participant_ID',
+                'Date',
+                'Time',
+                'Steps',
+                'Cadence_Band',
+                'Intensity_Category'
+            ]
+        ]
 
         # 5. BUILD HOURLY EXCEL OUTPUT
         all_dates = sorted(part_df['Date'].unique())
@@ -376,7 +420,11 @@ elif uploaded_files:
                     'Selected analysis start date',
                     'Selected analysis end date',
                     'Participant timezone',
-                    'Timestamp processing'
+                    'Timestamp processing',
+                    'Cadence-band defaults',
+                    'Intensity defaults',
+                    'Cadence-band reference',
+                    'Intensity-threshold reference'
                 ],
                 'Value': [
                     manual_participant_id,
@@ -388,7 +436,14 @@ elif uploaded_files:
                     (
                         "Source timestamps interpreted as UTC and converted "
                         "to the participant timezone before aggregation"
-                    )
+                    ),
+                    (
+                        f"0; {b1}-{b2-1}; {b2}-{b3-1}; {b3}-{b4-1}; "
+                        f"{b4}-{b5-1}; {b5}-{b6-1}; {b6}-{b7-1}; {b7}+ spm"
+                    ),
+                    f"MPA {mpa}-{vpa-1} spm; VPA {vpa}+ spm",
+                    "Tudor-Locke et al. (2011), doi:10.1016/j.ypmed.2011.06.004",
+                    "O'Brien et al. (2018), doi:10.3390/ijerph15112454"
                 ]
             })
             analysis_information.to_excel(
@@ -426,6 +481,25 @@ elif uploaded_files:
                 # Excel sheet names max 31 characters
                 sheet_name = label[:31]
                 hourly_band.reset_index().to_excel(writer, sheet_name=sheet_name, index=False)
+
+            # Separate intensity tabs because MPA/VPA thresholds overlap cadence bands
+            for intensity_label, intensity_mask in [
+                (mpa_label, (part_df['Steps'] >= mpa) & (part_df['Steps'] < vpa)),
+                (vpa_label, part_df['Steps'] >= vpa)
+            ]:
+                intensity_data = part_df[intensity_mask]
+                hourly_intensity = intensity_data.groupby(
+                    ['Date', 'Hour']
+                ).size().unstack(fill_value=0)
+                hourly_intensity = hourly_intensity.reindex(index=all_dates, fill_value=0)
+                hourly_intensity = hourly_intensity.reindex(columns=range(24), fill_value=0)
+                hourly_intensity = hourly_intensity.astype(int)
+                hourly_intensity.columns = hour_labels
+                hourly_intensity.reset_index().to_excel(
+                    writer,
+                    sheet_name=intensity_label[:31],
+                    index=False
+                )
 
         excel_buffer.seek(0)
 

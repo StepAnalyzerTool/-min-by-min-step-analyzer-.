@@ -22,19 +22,28 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     may vary slightly depending on whether the participant signs in with a Google Account or a 
     Fitbit login.
     
-    Once downloaded, unzip the archive and locate the **"Physical Activity"** folder. 
-    You will be uploading the files named **"steps-YYYY-MM-DD.json"** (e.g., steps-2012-10-01.json) 
-    from that folder.
+    Once downloaded, unzip the archive. You will need:
+    - The files named **"steps-YYYY-MM-DD.json"** (e.g., steps-2012-10-01.json) 
+      from the **"Physical Activity"** folder
+    - Optionally, **"Profile.csv"** from the **"Personal & Account"** folder so the
+      tool can identify the participant's Fitbit profile timezone
     
     ---
     
     **Step 2: Configure Settings**
     
-    Use the sidebar on the left to:
-    - Select the **timezone** that matches the participant's location during data collection
+    Before processing the step data, you must confirm the participant's timezone. In the
+    sidebar on the left, either:
+    - Upload **"Profile.csv"** and allow the tool to select the timezone recorded in the
+      participant's Fitbit profile; or
+    - Manually select the **timezone** that matches the participant's location during data
+      collection if **"Profile.csv"** is unavailable
+
+    Review the displayed timezone and check the confirmation box before continuing. Also use
+    the sidebar to:
     - Enter a unique **Participant ID** (this label will appear in your output files)
     - Adjust the **cadence band thresholds** if your study uses custom step-rate criteria
-    (default values are pre-loaded based on published guidelines)
+      (default values are pre-loaded based on published guidelines)
     
     ---
     
@@ -64,10 +73,62 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     """)
 
 # --- SIDEBAR ---
-st.sidebar.header("1. Settings")
+st.sidebar.header("1. Timezone")
+profile_file = st.sidebar.file_uploader(
+    'Optional: Upload "Profile.csv"',
+    type=['csv'],
+    accept_multiple_files=False,
+    help='In the unzipped Fitbit export, find Profile.csv in the "Personal & Account" folder.'
+)
+
+detected_timezone = None
+if profile_file is not None:
+    try:
+        profile_df = pd.read_csv(profile_file)
+        profile_file.seek(0)
+
+        if 'timezone' not in profile_df.columns or profile_df.empty:
+            st.sidebar.warning(
+                '⚠️ The uploaded CSV does not contain a usable "timezone" field. '
+                'Please select the timezone manually.'
+            )
+        else:
+            candidate_timezone = str(profile_df.loc[0, 'timezone']).strip()
+            if candidate_timezone in pytz.all_timezones:
+                detected_timezone = candidate_timezone
+                st.sidebar.success(
+                    f"✅ Timezone found in Profile.csv: {detected_timezone}"
+                )
+            else:
+                st.sidebar.warning(
+                    f'⚠️ The timezone in Profile.csv ("{candidate_timezone}") was not '
+                    'recognized. Please select the timezone manually.'
+                )
+    except Exception as e:
+        st.sidebar.warning(
+            f"⚠️ Profile.csv could not be read ({e}). Please select the timezone manually."
+        )
+
+timezone_options = [
+    "America/New_York",
+    "America/Chicago",
+    "America/Denver",
+    "America/Los_Angeles",
+    "UTC"
+]
+if detected_timezone and detected_timezone not in timezone_options:
+    timezone_options.insert(0, detected_timezone)
+
+default_timezone = detected_timezone or "America/New_York"
 timezone = st.sidebar.selectbox(
-    "Select Timezone (Handles DST)",
-    ["America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "UTC"]
+    "Confirm or manually select timezone",
+    timezone_options,
+    index=timezone_options.index(default_timezone),
+    help="This should match the participant's location during data collection."
+)
+timezone_confirmed = st.sidebar.checkbox(
+    f"I confirm the participant timezone is {timezone}",
+    value=False
 )
 
 st.sidebar.header("2. Participant Information")
@@ -101,7 +162,12 @@ hour_labels = [
     "8:00-9:00 PM", "9:00-10:00 PM", "10:00-11:00 PM", "11:00 PM-12:00 AM"
 ]
 
-if uploaded_files:
+if uploaded_files and not timezone_confirmed:
+    st.warning(
+        "⚠️ Confirm the participant's timezone in the sidebar before processing the step files."
+    )
+
+elif uploaded_files:
     st.write(f"### Processing {len(uploaded_files)} file(s) for {manual_participant_id}...")
 
     all_raw_dfs = []

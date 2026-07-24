@@ -3,6 +3,8 @@ import pandas as pd
 import json
 from io import BytesIO
 import pytz
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
 
 st.set_page_config(page_title="Step Cadence Analyzer", layout="wide")
 st.title("Minute-by-Minute Step Cadence Analyzer")
@@ -63,10 +65,13 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     The app will then process the selected dates and display a preview of the daily summary.
     Download your results using the buttons that appear below the preview.
     
-    Three output files are provided:
+    Four output files are provided:
     - 📄 **Daily Summary (CSV):** Total steps; minutes in each of the eight Tudor-Locke cadence bands; and MPA, VPA, and total MVPA minutes per calendar day
     - 📄 **Minute-by-Minute Log (CSV):** A complete chronological record with both the cadence-band and intensity classification for each minute
     - 📊 **Hourly Analysis (Excel):** Total steps and minutes per cadence band broken down by hour of day, with separate MPA and VPA tabs
+    - 🚩 **Red Flag Summary (Excel):** Daily and daypart steps, active minutes,
+      plausible wear minutes, activity span, and four exploratory data-coverage
+      indicators
     
     ---
     
@@ -197,6 +202,260 @@ hour_labels = [
     "8:00-9:00 PM", "9:00-10:00 PM", "10:00-11:00 PM", "11:00 PM-12:00 AM"
 ]
 
+
+DAYPARTS = ["Overnight", "Morning", "Afternoon", "Evening"]
+
+
+def format_clock(timestamp):
+    """Format a timestamp as, for example, 6:33 p.m."""
+    hour = timestamp.hour % 12 or 12
+    suffix = "a.m." if timestamp.hour < 12 else "p.m."
+    return f"{hour}:{timestamp.minute:02d} {suffix}"
+
+
+def build_red_flag_workbook(part_df, participant_id):
+    """Build the exploratory daily/daypart data-coverage summary."""
+    red_flag_df = part_df[['Date', 'Steps']].copy()
+    red_flag_df['Daypart'] = pd.cut(
+        red_flag_df.index.hour,
+        bins=[-1, 5, 11, 17, 23],
+        labels=DAYPARTS
+    )
+    red_flag_df['Active_Minute'] = red_flag_df['Steps'].gt(0).astype(int)
+
+    # Modified step-based nonwear proxy: every step-positive minute interrupts
+    # a run. Only uninterrupted zero-step runs of >=90 consecutive minutes are
+    # classified as prolonged zero-step time.
+    zero_step = red_flag_df['Steps'].eq(0)
+    consecutive_minute = red_flag_df.index.to_series().diff().eq(pd.Timedelta(minutes=1))
+    run_start = (~zero_step) | (~consecutive_minute)
+    run_id = run_start.cumsum()
+    zero_run_lengths = zero_step.groupby(run_id).transform('sum')
+    red_flag_df['Prolonged_Zero_Step'] = (
+        zero_step & zero_run_lengths.ge(90)
+    ).astype(int)
+    red_flag_df['Plausible_Wear_Minute'] = 1 - red_flag_df['Prolonged_Zero_Step']
+
+    dates = sorted(red_flag_df['Date'].unique())
+    rows = []
+    calculation_rows = []
+    for day_number, date_value in enumerate(dates, start=1):
+        day_df = red_flag_df[red_flag_df['Date'] == date_value]
+        steps_by_part = (
+            day_df.groupby('Daypart', observed=False)['Steps']
+            .sum().reindex(DAYPARTS, fill_value=0).astype(int)
+        )
+        active_by_part = (
+            day_df.groupby('Daypart', observed=False)['Active_Minute']
+            .sum().reindex(DAYPARTS, fill_value=0).astype(int)
+        )
+        wear_by_part = (
+            day_df.groupby('Daypart', observed=False)['Plausible_Wear_Minute']
+            .sum().reindex(DAYPARTS, fill_value=0).astype(int)
+        )
+        zero_by_part = (
+            day_df.groupby('Daypart', observed=False)['Prolonged_Zero_Step']
+            .sum().reindex(DAYPARTS, fill_value=0).astype(int)
+        )
+
+        active_rows = day_df[day_df['Steps'] > 0]
+        if active_rows.empty:
+            activity_span_label = ""
+            activity_span_minutes = None
+        else:
+            first_active = active_rows.index[0]
+            last_active = active_rows.index[-1]
+            activity_span_label = (
+                f"{format_clock(first_active)}–{format_clock(last_active)}"
+            )
+            activity_span_minutes = int(
+                (last_active - first_active).total_seconds() // 60
+            )
+
+        total_steps = int(steps_by_part.sum())
+        total_active = int(active_by_part.sum())
+        total_wear = int(wear_by_part.sum())
+        active_dayparts = int((active_by_part > 0).sum())
+
+        rows.append([
+            day_number,
+            total_steps, *steps_by_part.tolist(),
+            total_active, *active_by_part.tolist(),
+            total_wear, *wear_by_part.tolist(),
+            activity_span_label, activity_span_minutes,
+            "RED FLAG" if total_steps < 1000 else "",
+            "RED FLAG" if active_dayparts == 1 else "",
+            (
+                "RED FLAG"
+                if activity_span_minutes is not None
+                and activity_span_minutes < 360
+                else ""
+            ),
+            "RED FLAG" if total_wear < 600 else "",
+        ])
+        calculation_rows.append([
+            day_number,
+            date_value,
+            *zero_by_part.tolist(),
+        ])
+
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        workbook = writer.book
+        summary_name = f"{participant_id} Red Flag Summary"[:31]
+        summary_sheet = workbook.create_sheet(summary_name)
+        calculation_sheet = workbook.create_sheet("Calculation Inputs")
+        notes_sheet = workbook.create_sheet("Method Notes")
+        if "Sheet" in workbook.sheetnames:
+            del workbook["Sheet"]
+
+        group_headers = [
+            "Day",
+            "Steps", None, None, None, None,
+            "Active Minutes (>0 Steps)", None, None, None, None,
+            "Plausible Wear Minutes", None, None, None, None,
+            "Activity Span", None,
+            "Red-Flag Indicators", None, None, None,
+        ]
+        subheaders = [
+            None,
+            "Total", *DAYPARTS,
+            "Total", *DAYPARTS,
+            "Total", *DAYPARTS,
+            "First–Last Step-Positive Time", "Span (Minutes)",
+            "Total Steps <1,000",
+            "Activity in Only One Daypart",
+            "Activity Span <6 Hours",
+            "Plausible Wear <600 Minutes",
+        ]
+        summary_sheet.append(group_headers)
+        summary_sheet.append(subheaders)
+        for row in rows:
+            summary_sheet.append(row)
+
+        summary_sheet.merge_cells("A1:A2")
+        for cell_range in ["B1:F1", "G1:K1", "L1:P1", "Q1:R1", "S1:V1"]:
+            summary_sheet.merge_cells(cell_range)
+
+        header_colors = {
+            "A": "274C77", "B": "4F81BD", "G": "548A54",
+            "L": "C97A28", "Q": "695D8F", "S": "A61B1B",
+        }
+        for start_col, end_col in [(1, 1), (2, 6), (7, 11), (12, 16), (17, 18), (19, 22)]:
+            fill = PatternFill("solid", fgColor=header_colors[get_column_letter(start_col)])
+            for col in range(start_col, end_col + 1):
+                cell = summary_sheet.cell(1, col)
+                cell.fill = fill
+                cell.font = Font(bold=True, color="FFFFFF")
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+
+        subheader_colors = [
+            (2, 6, "D9EAF7"), (7, 11, "DDEEDB"), (12, 16, "F9E2C7"),
+            (17, 18, "E4DFF2"), (19, 22, "F4CCCC"),
+        ]
+        for start_col, end_col, color in subheader_colors:
+            for col in range(start_col, end_col + 1):
+                cell = summary_sheet.cell(2, col)
+                cell.fill = PatternFill("solid", fgColor=color)
+                cell.font = Font(bold=True, color="243240")
+                cell.alignment = Alignment(
+                    horizontal="center", vertical="center", wrap_text=True
+                )
+
+        thin_gray = Side(style="thin", color="C7D0D9")
+        medium_gray = Side(style="medium", color="9AA7B2")
+        for row in summary_sheet.iter_rows(
+            min_row=1, max_row=summary_sheet.max_row, min_col=1, max_col=22
+        ):
+            for cell in row:
+                cell.border = Border(bottom=thin_gray)
+                if cell.column in [6, 11, 16, 18, 22]:
+                    cell.border = Border(bottom=thin_gray, right=medium_gray)
+                if cell.row >= 3 and cell.column >= 19:
+                    cell.font = Font(bold=True, color="A61B1B")
+                    cell.alignment = Alignment(horizontal="center")
+
+        widths = {
+            1: 8, 17: 24, 18: 14, 19: 18, 20: 20, 21: 18, 22: 20,
+        }
+        for col in range(2, 17):
+            widths.setdefault(col, 12)
+        for col, width in widths.items():
+            summary_sheet.column_dimensions[get_column_letter(col)].width = width
+        summary_sheet.row_dimensions[1].height = 28
+        summary_sheet.row_dimensions[2].height = 42
+        summary_sheet.freeze_panes = "B3"
+        summary_sheet.sheet_view.showGridLines = False
+
+        calculation_sheet.append([
+            "Day", "Date",
+            "Overnight Prolonged Zero-Step Minutes",
+            "Morning Prolonged Zero-Step Minutes",
+            "Afternoon Prolonged Zero-Step Minutes",
+            "Evening Prolonged Zero-Step Minutes",
+        ])
+        for row in calculation_rows:
+            calculation_sheet.append(row)
+        for cell in calculation_sheet[1]:
+            cell.fill = PatternFill("solid", fgColor="C97A28")
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.alignment = Alignment(
+                horizontal="center", vertical="center", wrap_text=True
+            )
+        calculation_sheet.freeze_panes = "A2"
+        calculation_sheet.sheet_view.showGridLines = False
+        calculation_sheet.column_dimensions["A"].width = 8
+        calculation_sheet.column_dimensions["B"].width = 14
+        for col in range(3, 7):
+            calculation_sheet.column_dimensions[get_column_letter(col)].width = 25
+
+        notes = [
+            ("Measure", "Definition"),
+            (
+                "Plausible Wear Minutes",
+                "Minutes not contained in an uninterrupted zero-step interval "
+                "lasting at least 90 consecutive minutes. Any step-positive "
+                "minute interrupts the interval."
+            ),
+            (
+                "Dayparts",
+                "Overnight 12:00–5:59 a.m.; Morning 6:00–11:59 a.m.; "
+                "Afternoon 12:00–5:59 p.m.; Evening 6:00–11:59 p.m."
+            ),
+            ("Total Steps flag", "Daily total steps <1,000."),
+            (
+                "One-daypart flag",
+                "One and only one daypart contains a step-positive minute; "
+                "zero-activity days are not flagged by this indicator."
+            ),
+            (
+                "Activity-span flag",
+                "Elapsed time from the first through last step-positive minute "
+                "is <360 minutes. Zero-activity days have no activity span."
+            ),
+            ("Plausible-wear flag", "Daily plausible wear is <600 minutes."),
+            (
+                "Interpretation",
+                "Plausible wear and activity-span indicators are exploratory "
+                "screening measures, not validated Fitbit exclusion criteria."
+            ),
+        ]
+        for row in notes:
+            notes_sheet.append(row)
+        for cell in notes_sheet[1]:
+            cell.fill = PatternFill("solid", fgColor="274C77")
+            cell.font = Font(bold=True, color="FFFFFF")
+        notes_sheet.column_dimensions["A"].width = 24
+        notes_sheet.column_dimensions["B"].width = 100
+        for row in notes_sheet.iter_rows():
+            for cell in row:
+                cell.alignment = Alignment(vertical="top", wrap_text=True)
+        notes_sheet.sheet_view.showGridLines = False
+
+    output.seek(0)
+    return output
+
+
 if uploaded_files and not timezone_confirmed:
     st.warning(
         "⚠️ Confirm the participant's timezone in the sidebar before processing the step files."
@@ -300,7 +559,7 @@ elif uploaded_files:
             st.error("❌ No step records were found within the selected date range.")
 
         if not date_range_confirmed:
-            st.info("Confirm the analysis date range to generate the three output files.")
+            st.info("Confirm the analysis date range to generate the four output files.")
             st.stop()
 
         if selected_df.empty:
@@ -502,6 +761,7 @@ elif uploaded_files:
                 )
 
         excel_buffer.seek(0)
+        red_flag_buffer = build_red_flag_workbook(part_df, manual_participant_id)
 
         # 6. DISPLAY RESULTS AND DOWNLOAD BUTTONS
         st.success("✅ Analysis Complete!")
@@ -514,7 +774,7 @@ elif uploaded_files:
         st.write("### Daily Summary Preview")
         st.dataframe(final_summary)
 
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
             csv_summary = final_summary.to_csv(index=False).encode('utf-8')
             st.download_button(
@@ -536,6 +796,13 @@ elif uploaded_files:
                 "📊 Download Hourly Analysis (Excel)",
                 data=excel_buffer,
                 file_name=f"{manual_participant_id}_Hourly_Analysis.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+        with col4:
+            st.download_button(
+                "🚩 Download Red Flag Summary (Excel)",
+                data=red_flag_buffer,
+                file_name=f"{manual_participant_id}_Red_Flag_Summary.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 

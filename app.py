@@ -69,10 +69,10 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     that appear when processing is complete.
     
     Four output files are provided:
-    - 📄 **Daily Summary (CSV):** Total steps; minutes in each of the eight Tudor-Locke cadence bands; and MPA, VPA, and total MVPA minutes per calendar day
+    - 📄 **Daily Summary (CSV):** Total steps; minutes in each of the cadence bands; and MPA, VPA, and total MVPA minutes per calendar day
     - 📄 **Minute-by-Minute Log (CSV):** A complete chronological record with both the cadence-band and intensity classification for each minute
-    - 📊 **Hourly Analysis (Excel):** Total steps and minutes per cadence band broken down by hour of day, with separate MPA and VPA tabs
-    - 🚩 **Red Flag Summary (Excel):** Daily and daypart steps, active minutes,
+    - 📊 **Hourly Analysis (CVS):** Total steps and minutes per cadence band broken down by hour of day, with separate MPA and VPA tabs
+    - 🚩 **Red Flag Summary (CVS):** Daily and daypart steps, active minutes,
       plausible wear minutes, activity span, and four exploratory data-coverage
       indicators in a single worksheet
     

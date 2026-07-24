@@ -1,10 +1,7 @@
 import streamlit as st
 import pandas as pd
 import json
-from io import BytesIO
 import pytz
-from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
-from openpyxl.utils import get_column_letter
 
 st.set_page_config(page_title="Step Cadence Analyzer", layout="wide")
 st.title("Minute-by-Minute Step Cadence Analyzer")
@@ -71,10 +68,10 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     Four output files are provided:
     - 📄 **Daily Summary (CSV):** Total steps; minutes in each of the cadence bands; and MPA, VPA, and total MVPA minutes per calendar day
     - 📄 **Minute-by-Minute Log (CSV):** A complete chronological record with both the cadence-band and intensity classification for each minute
-    - 📊 **Hourly Analysis (CVS):** Total steps and minutes per cadence band broken down by hour of day, with separate MPA and VPA tabs
-    - 🚩 **Red Flag Summary (CVS):** Daily and daypart steps, active minutes,
+    - 📊 **Hourly Analysis (CSV):** Total steps and minutes per cadence band broken down by hour of day, with separate rows for MPA and VPA
+    - 🚩 **Red Flag Summary (CSV):** Daily and daypart steps, active minutes,
       plausible wear minutes, activity span, and four exploratory data-coverage
-      indicators in a single worksheet
+      indicators
     
     ---
     
@@ -195,7 +192,7 @@ uploaded_files = st.sidebar.file_uploader(
     accept_multiple_files=True
 )
 
-# Hour labels for Excel output (hour 0 = midnight to 1am)
+# Hour labels used in the hourly CSV output (hour 0 = midnight to 1 a.m.)
 hour_labels = [
     "12:00-1:00 AM", "1:00-2:00 AM", "2:00-3:00 AM", "3:00-4:00 AM",
     "4:00-5:00 AM", "5:00-6:00 AM", "6:00-7:00 AM", "7:00-8:00 AM",
@@ -216,8 +213,8 @@ def format_clock(timestamp):
     return f"{hour}:{timestamp.minute:02d} {suffix}"
 
 
-def build_red_flag_workbook(part_df, participant_id):
-    """Build the single-sheet exploratory daily/daypart data-coverage summary."""
+def build_red_flag_summary(part_df, participant_id):
+    """Build the exploratory daily/daypart data-coverage summary."""
     red_flag_df = part_df[['Date', 'Steps']].copy()
     red_flag_df['Daypart'] = pd.cut(
         red_flag_df.index.hour,
@@ -274,110 +271,100 @@ def build_red_flag_workbook(part_df, participant_id):
         total_wear = int(wear_by_part.sum())
         active_dayparts = int((active_by_part > 0).sum())
 
-        rows.append([
-            day_number,
-            total_steps, *steps_by_part.tolist(),
-            total_active, *active_by_part.tolist(),
-            total_wear, *wear_by_part.tolist(),
-            activity_span_label, activity_span_minutes,
-            "RED FLAG" if total_steps < 1000 else "",
-            "RED FLAG" if active_dayparts == 1 else "",
-            (
-                "RED FLAG"
-                if activity_span_minutes is not None
+        rows.append({
+            "Participant_ID": participant_id,
+            "Day": day_number,
+            "Date": date_value,
+            "Total_Steps": total_steps,
+            **{f"{daypart}_Steps": int(steps_by_part[daypart]) for daypart in DAYPARTS},
+            "Total_Active_Minutes": total_active,
+            **{
+                f"{daypart}_Active_Minutes": int(active_by_part[daypart])
+                for daypart in DAYPARTS
+            },
+            "Total_Plausible_Wear_Minutes": total_wear,
+            **{
+                f"{daypart}_Plausible_Wear_Minutes": int(wear_by_part[daypart])
+                for daypart in DAYPARTS
+            },
+            "First_Last_Step_Positive_Time": activity_span_label,
+            "Activity_Span_Minutes": activity_span_minutes,
+            "Red_Flag_Total_Steps_Under_1000": total_steps < 1000,
+            "Red_Flag_Activity_In_Only_One_Daypart": active_dayparts == 1,
+            "Red_Flag_Activity_Span_Under_6_Hours": (
+                activity_span_minutes is not None
                 and activity_span_minutes < 360
-                else ""
             ),
-            "RED FLAG" if total_wear < 600 else "",
-        ])
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        workbook = writer.book
-        summary_name = f"{participant_id} Red Flag Summary"[:31]
-        summary_sheet = workbook.create_sheet(summary_name)
-        if "Sheet" in workbook.sheetnames:
-            del workbook["Sheet"]
+            "Red_Flag_Plausible_Wear_Under_600_Minutes": total_wear < 600,
+        })
 
-        group_headers = [
-            "Day",
-            "Steps", None, None, None, None,
-            "Active Minutes (>0 Steps)", None, None, None, None,
-            "Plausible Wear Minutes", None, None, None, None,
-            "Activity Span", None,
-            "Red-Flag Indicators", None, None, None,
+    return pd.DataFrame(rows)
+
+
+def build_hourly_analysis(part_df, labels, mpa, vpa):
+    """Build one tidy CSV table containing every hourly analysis measure."""
+    hourly_frames = []
+
+    hourly_steps = (
+        part_df.groupby(["Participant_ID", "Date", "Hour"], as_index=False)["Steps"]
+        .sum()
+        .rename(columns={"Steps": "Value"})
+    )
+    hourly_steps["Measure"] = "Total Steps"
+    hourly_steps["Category"] = "All Steps"
+    hourly_frames.append(hourly_steps)
+
+    cadence_counts = (
+        part_df.groupby(
+            ["Participant_ID", "Date", "Hour", "Cadence_Band"],
+            observed=False
+        )
+        .size()
+        .rename("Value")
+        .reset_index()
+        .rename(columns={"Cadence_Band": "Category"})
+    )
+    cadence_counts["Category"] = cadence_counts["Category"].astype(str)
+    cadence_counts["Measure"] = "Minutes in Cadence Band"
+    hourly_frames.append(cadence_counts)
+
+    for category, mask in [
+        (f"MPA ({mpa}-{vpa-1} spm)", (part_df["Steps"] >= mpa) & (part_df["Steps"] < vpa)),
+        (f"VPA ({vpa}+ spm)", part_df["Steps"] >= vpa),
+    ]:
+        intensity_counts = (
+            part_df.loc[mask]
+            .groupby(["Participant_ID", "Date", "Hour"])
+            .size()
+            .reindex(
+                pd.MultiIndex.from_product(
+                    [
+                        part_df["Participant_ID"].unique(),
+                        sorted(part_df["Date"].unique()),
+                        range(24),
+                    ],
+                    names=["Participant_ID", "Date", "Hour"],
+                ),
+                fill_value=0,
+            )
+            .rename("Value")
+            .reset_index()
+        )
+        intensity_counts["Measure"] = "Minutes in Intensity Category"
+        intensity_counts["Category"] = category
+        hourly_frames.append(intensity_counts)
+
+    hourly_analysis = pd.concat(hourly_frames, ignore_index=True)
+    hourly_analysis["Hour_Label"] = hourly_analysis["Hour"].map(
+        dict(enumerate(hour_labels))
+    )
+    hourly_analysis["Value"] = hourly_analysis["Value"].astype(int)
+    return hourly_analysis[
+        [
+            "Participant_ID", "Date", "Hour", "Hour_Label",
+            "Measure", "Category", "Value"
         ]
-        subheaders = [
-            None,
-            "Total", *DAYPARTS,
-            "Total", *DAYPARTS,
-            "Total", *DAYPARTS,
-            "First–Last Step-Positive Time", "Span (Minutes)",
-            "Total Steps <1,000",
-            "Activity in Only One Daypart",
-            "Activity Span <6 Hours",
-            "Plausible Wear <600 Minutes",
-        ]
-        summary_sheet.append(group_headers)
-        summary_sheet.append(subheaders)
-        for row in rows:
-            summary_sheet.append(row)
-
-        summary_sheet.merge_cells("A1:A2")
-        for cell_range in ["B1:F1", "G1:K1", "L1:P1", "Q1:R1", "S1:V1"]:
-            summary_sheet.merge_cells(cell_range)
-
-        header_colors = {
-            "A": "274C77", "B": "4F81BD", "G": "548A54",
-            "L": "C97A28", "Q": "695D8F", "S": "A61B1B",
-        }
-        for start_col, end_col in [(1, 1), (2, 6), (7, 11), (12, 16), (17, 18), (19, 22)]:
-            fill = PatternFill("solid", fgColor=header_colors[get_column_letter(start_col)])
-            for col in range(start_col, end_col + 1):
-                cell = summary_sheet.cell(1, col)
-                cell.fill = fill
-                cell.font = Font(bold=True, color="FFFFFF")
-                cell.alignment = Alignment(horizontal="center", vertical="center")
-
-        subheader_colors = [
-            (2, 6, "D9EAF7"), (7, 11, "DDEEDB"), (12, 16, "F9E2C7"),
-            (17, 18, "E4DFF2"), (19, 22, "F4CCCC"),
-        ]
-        for start_col, end_col, color in subheader_colors:
-            for col in range(start_col, end_col + 1):
-                cell = summary_sheet.cell(2, col)
-                cell.fill = PatternFill("solid", fgColor=color)
-                cell.font = Font(bold=True, color="243240")
-                cell.alignment = Alignment(
-                    horizontal="center", vertical="center", wrap_text=True
-                )
-
-        thin_gray = Side(style="thin", color="C7D0D9")
-        medium_gray = Side(style="medium", color="9AA7B2")
-        for row in summary_sheet.iter_rows(
-            min_row=1, max_row=summary_sheet.max_row, min_col=1, max_col=22
-        ):
-            for cell in row:
-                cell.border = Border(bottom=thin_gray)
-                if cell.column in [6, 11, 16, 18, 22]:
-                    cell.border = Border(bottom=thin_gray, right=medium_gray)
-                if cell.row >= 3 and cell.column >= 19:
-                    cell.font = Font(bold=True, color="A61B1B")
-                    cell.alignment = Alignment(horizontal="center")
-
-        widths = {
-            1: 8, 17: 24, 18: 14, 19: 18, 20: 20, 21: 18, 22: 20,
-        }
-        for col in range(2, 17):
-            widths.setdefault(col, 12)
-        for col, width in widths.items():
-            summary_sheet.column_dimensions[get_column_letter(col)].width = width
-        summary_sheet.row_dimensions[1].height = 28
-        summary_sheet.row_dimensions[2].height = 42
-        summary_sheet.freeze_panes = "B3"
-        summary_sheet.sheet_view.showGridLines = False
-
-    output.seek(0)
-    return output
+    ].sort_values(["Date", "Hour", "Measure", "Category"])
 
 
 if uploaded_files and not timezone_confirmed:
@@ -523,7 +510,7 @@ elif uploaded_files:
 
         part_df = pd.concat(participant_full_timeseries)
 
-        # Add hour column for hourly Excel output
+        # Add hour column for hourly CSV output
         part_df['Hour'] = part_df.index.hour
 
         # 3. DEFINE TUDOR-LOCKE CADENCE BINS AND INTENSITY CLASSIFICATIONS
@@ -589,103 +576,9 @@ elif uploaded_files:
             ]
         ]
 
-        # 5. BUILD HOURLY EXCEL OUTPUT
-        all_dates = sorted(part_df['Date'].unique())
-
-        excel_buffer = BytesIO()
-        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-
-            analysis_information = pd.DataFrame({
-                'Setting': [
-                    'Participant ID',
-                    'Available start date',
-                    'Available end date',
-                    'Selected analysis start date',
-                    'Selected analysis end date',
-                    'Participant timezone',
-                    'Timestamp processing',
-                    'Cadence-band defaults',
-                    'Intensity defaults',
-                    'Cadence-band reference',
-                    'Intensity-threshold reference'
-                ],
-                'Value': [
-                    manual_participant_id,
-                    earliest_available_date.isoformat(),
-                    latest_available_date.isoformat(),
-                    analysis_start_date.isoformat(),
-                    analysis_end_date.isoformat(),
-                    timezone,
-                    (
-                        "Source timestamps interpreted as UTC and converted "
-                        "to the participant timezone before aggregation"
-                    ),
-                    (
-                        f"0; {b1}-{b2-1}; {b2}-{b3-1}; {b3}-{b4-1}; "
-                        f"{b4}-{b5-1}; {b5}-{b6-1}; {b6}-{b7-1}; {b7}+ spm"
-                    ),
-                    f"MPA {mpa}-{vpa-1} spm; VPA {vpa}+ spm",
-                    "Tudor-Locke et al. (2011), doi:10.1016/j.ypmed.2011.06.004",
-                    "O'Brien et al. (2018), doi:10.3390/ijerph15112454"
-                ]
-            })
-            analysis_information.to_excel(
-                writer, sheet_name='Analysis Information', index=False
-            )
-
-            # Tab 1: Total Steps per Hour
-            hourly_steps = part_df.groupby(['Date', 'Hour'])['Steps'].sum().unstack(fill_value=0)
-            hourly_steps = hourly_steps.reindex(index=all_dates, fill_value=0)
-            hourly_steps = hourly_steps.reindex(columns=range(24), fill_value=0)
-            hourly_steps.columns = hour_labels
-            hourly_steps.reset_index().to_excel(
-                writer, sheet_name='Total Steps per Hour', index=False
-            )
-
-            # One tab per cadence band
-            for label in labels:
-                band_data = part_df[part_df['Cadence_Band'] == label]
-
-                if not band_data.empty:
-                    hourly_band = band_data.groupby(
-                        ['Date', 'Hour']
-                    ).size().unstack(fill_value=0)
-                else:
-                    hourly_band = pd.DataFrame(
-                        index=pd.Index(all_dates, name='Date'),
-                        columns=range(24),
-                        dtype=float
-                    ).fillna(0)
-
-                hourly_band = hourly_band.reindex(index=all_dates, fill_value=0)
-                hourly_band = hourly_band.reindex(columns=range(24), fill_value=0)
-                hourly_band = hourly_band.astype(int)
-                hourly_band.columns = hour_labels
-                # Excel sheet names max 31 characters
-                sheet_name = label[:31]
-                hourly_band.reset_index().to_excel(writer, sheet_name=sheet_name, index=False)
-
-            # Separate intensity tabs because MPA/VPA thresholds overlap cadence bands
-            for intensity_label, intensity_mask in [
-                (mpa_label, (part_df['Steps'] >= mpa) & (part_df['Steps'] < vpa)),
-                (vpa_label, part_df['Steps'] >= vpa)
-            ]:
-                intensity_data = part_df[intensity_mask]
-                hourly_intensity = intensity_data.groupby(
-                    ['Date', 'Hour']
-                ).size().unstack(fill_value=0)
-                hourly_intensity = hourly_intensity.reindex(index=all_dates, fill_value=0)
-                hourly_intensity = hourly_intensity.reindex(columns=range(24), fill_value=0)
-                hourly_intensity = hourly_intensity.astype(int)
-                hourly_intensity.columns = hour_labels
-                hourly_intensity.reset_index().to_excel(
-                    writer,
-                    sheet_name=intensity_label[:31],
-                    index=False
-                )
-
-        excel_buffer.seek(0)
-        red_flag_buffer = build_red_flag_workbook(part_df, manual_participant_id)
+        # 5. BUILD HOURLY AND RED-FLAG CSV OUTPUTS
+        hourly_analysis = build_hourly_analysis(part_df, labels, mpa, vpa)
+        red_flag_summary = build_red_flag_summary(part_df, manual_participant_id)
 
         # 6. DISPLAY RESULTS AND DOWNLOAD BUTTONS
         st.success("✅ Analysis Complete!")
@@ -713,18 +606,20 @@ elif uploaded_files:
                 mime="text/csv"
             )
         with col3:
+            csv_hourly = hourly_analysis.to_csv(index=False).encode('utf-8-sig')
             st.download_button(
-                "📊 Download Hourly Analysis (Excel)",
-                data=excel_buffer,
-                file_name=f"{manual_participant_id}_Hourly_Analysis.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                "📊 Download Hourly Analysis (CSV)",
+                data=csv_hourly,
+                file_name=f"{manual_participant_id}_Hourly_Analysis.csv",
+                mime="text/csv"
             )
         with col4:
+            csv_red_flags = red_flag_summary.to_csv(index=False).encode('utf-8-sig')
             st.download_button(
-                "🚩 Download Red Flag Summary (Excel)",
-                data=red_flag_buffer,
-                file_name=f"{manual_participant_id}_Red_Flag_Summary.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                "🚩 Download Red Flag Summary (CSV)",
+                data=csv_red_flags,
+                file_name=f"{manual_participant_id}_Red_Flag_Summary.csv",
+                mime="text/csv"
             )
 
     else:

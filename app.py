@@ -11,7 +11,7 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     st.markdown("""
     This application processes raw, minute-by-minute step data exported from Fitbit devices 
     and automatically calculates daily physical activity summaries based on step cadence bands.
-    It also produces a complete minute-level log, hourly activity tables, and an exploratory
+    It also produces a minute-level step log, hourly step totals, and an exploratory
     red-flag summary designed to help researcher identify days that may warrant review for incomplete
     data coverage.
     
@@ -67,8 +67,8 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     
     Four output files are provided:
     - 📄 **Daily Summary (CSV):** Total steps; minutes in each of the cadence bands; and MPA, VPA, and total MVPA minutes per calendar day
-    - 📄 **Minute-by-Minute Log (CSV):** A complete chronological record with both the cadence-band and intensity classification for each minute
-    - 📊 **Hourly Analysis (CSV):** Total steps and minutes per cadence band broken down by hour of day, with separate rows for MPA and VPA
+    - 📄 **Minute-by-Minute Log (CSV):** A complete chronological record of the total steps recorded in each minute
+    - 📊 **Hourly Analysis (CSV):** Total steps recorded in each hour of the day
     - 🚩 **Red Flag Summary (CSV):** Daily and daypart steps, active minutes,
       plausible wear minutes, activity span, and four exploratory data-coverage
       indicators
@@ -301,70 +301,23 @@ def build_red_flag_summary(part_df, participant_id):
     return pd.DataFrame(rows)
 
 
-def build_hourly_analysis(part_df, labels, mpa, vpa):
-    """Build one tidy CSV table containing every hourly analysis measure."""
-    hourly_frames = []
-
-    hourly_steps = (
+def build_hourly_analysis(part_df):
+    """Build one CSV row per hour containing total recorded steps."""
+    hourly_analysis = (
         part_df.groupby(["Participant_ID", "Date", "Hour"], as_index=False)["Steps"]
         .sum()
-        .rename(columns={"Steps": "Value"})
+        .rename(columns={"Steps": "Total_Steps"})
     )
-    hourly_steps["Measure"] = "Total Steps"
-    hourly_steps["Category"] = "All Steps"
-    hourly_frames.append(hourly_steps)
-
-    cadence_counts = (
-        part_df.groupby(
-            ["Participant_ID", "Date", "Hour", "Cadence_Band"],
-            observed=False
-        )
-        .size()
-        .rename("Value")
-        .reset_index()
-        .rename(columns={"Cadence_Band": "Category"})
-    )
-    cadence_counts["Category"] = cadence_counts["Category"].astype(str)
-    cadence_counts["Measure"] = "Minutes in Cadence Band"
-    hourly_frames.append(cadence_counts)
-
-    for category, mask in [
-        (f"MPA ({mpa}-{vpa-1} spm)", (part_df["Steps"] >= mpa) & (part_df["Steps"] < vpa)),
-        (f"VPA ({vpa}+ spm)", part_df["Steps"] >= vpa),
-    ]:
-        intensity_counts = (
-            part_df.loc[mask]
-            .groupby(["Participant_ID", "Date", "Hour"])
-            .size()
-            .reindex(
-                pd.MultiIndex.from_product(
-                    [
-                        part_df["Participant_ID"].unique(),
-                        sorted(part_df["Date"].unique()),
-                        range(24),
-                    ],
-                    names=["Participant_ID", "Date", "Hour"],
-                ),
-                fill_value=0,
-            )
-            .rename("Value")
-            .reset_index()
-        )
-        intensity_counts["Measure"] = "Minutes in Intensity Category"
-        intensity_counts["Category"] = category
-        hourly_frames.append(intensity_counts)
-
-    hourly_analysis = pd.concat(hourly_frames, ignore_index=True)
     hourly_analysis["Hour_Label"] = hourly_analysis["Hour"].map(
         dict(enumerate(hour_labels))
     )
-    hourly_analysis["Value"] = hourly_analysis["Value"].astype(int)
+    hourly_analysis["Total_Steps"] = hourly_analysis["Total_Steps"].astype(int)
     return hourly_analysis[
         [
             "Participant_ID", "Date", "Hour", "Hour_Label",
-            "Measure", "Category", "Value"
+            "Total_Steps"
         ]
-    ].sort_values(["Date", "Hour", "Measure", "Category"])
+    ].sort_values(["Date", "Hour"])
 
 
 if uploaded_files and not timezone_confirmed:
@@ -570,14 +523,12 @@ elif uploaded_files:
                 'Participant_ID',
                 'Date',
                 'Time',
-                'Steps',
-                'Cadence_Band',
-                'Intensity_Category'
+                'Steps'
             ]
         ]
 
         # 5. BUILD HOURLY AND RED-FLAG CSV OUTPUTS
-        hourly_analysis = build_hourly_analysis(part_df, labels, mpa, vpa)
+        hourly_analysis = build_hourly_analysis(part_df)
         red_flag_summary = build_red_flag_summary(part_df, manual_participant_id)
 
         # 6. DISPLAY RESULTS AND DOWNLOAD BUTTONS

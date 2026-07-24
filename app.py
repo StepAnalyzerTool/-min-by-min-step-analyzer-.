@@ -14,6 +14,9 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     st.markdown("""
     This application processes raw, minute-by-minute step data exported from Fitbit devices 
     and automatically calculates daily physical activity summaries based on step cadence bands.
+    It also produces a complete minute-level log, hourly activity tables, and an exploratory
+    red-flag summary designed to identify days that may warrant review for incomplete or
+    temporally restricted data coverage.
     
     ---
     
@@ -35,19 +38,19 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     **Step 2: Configure Settings**
     
     Before processing the step data, you must confirm the participant's timezone. In the
-    sidebar on the left, either:
-    - Upload **"Profile.csv"** and allow the tool to select the timezone recorded in the
+    sidebar under **A. Timezone**, either:
+    - Upload **"Profile.csv"** under **A** and allow the tool to select the timezone recorded in the
       participant's Fitbit profile; or
     - Manually select the **timezone** that matches the participant's location during data
       collection if **"Profile.csv"** is unavailable
 
     Review the displayed timezone and check the confirmation box before continuing. Also use
     the sidebar to:
-    - Enter a unique **Participant ID** (this label will appear in your output files)
-    - Adjust the **cadence band thresholds** if your study uses custom step-rate criteria
+    - Enter a unique **Participant ID** under **B** (this label will appear in your output files)
+    - Adjust the **intensity thresholds** under **C** if your study uses different MPA and
+      VPA criteria (defaults: MPA ≥100 spm and VPA ≥130 spm)²
+    - Adjust the **cadence band thresholds** under **D** if your study uses custom step-rate criteria
       (default values and names follow Tudor-Locke et al.¹)
-    - Adjust the **MPA and VPA thresholds** if your study uses different intensity
-      criteria (defaults: MPA ≥100 spm and VPA ≥130 spm)²
 
     Fitbit minute-level step timestamps are interpreted as UTC and converted to the confirmed
     participant timezone before daily and hourly summaries are calculated. This conversion
@@ -57,13 +60,13 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     
     **Step 3: Upload Files and Select the Analysis Dates**
     
-    Upload all JSON step files for the participant using the file uploader in the sidebar.
+    Upload all JSON step files for the participant using **E. Data Upload** in the sidebar.
     After the files are read and converted to local time, the app will display the earliest
     and latest available dates. Select the intended analysis start and end dates, then confirm
-    the range. The same selected date range will be applied to all three output files.
+    the range. The same selected date range will be applied to all four output files.
 
-    The app will then process the selected dates and display a preview of the daily summary.
-    Download your results using the buttons that appear below the preview.
+    The app will then process the selected dates. Download your results using the buttons
+    that appear when processing is complete.
     
     Four output files are provided:
     - 📄 **Daily Summary (CSV):** Total steps; minutes in each of the eight Tudor-Locke cadence bands; and MPA, VPA, and total MVPA minutes per calendar day
@@ -71,7 +74,7 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     - 📊 **Hourly Analysis (Excel):** Total steps and minutes per cadence band broken down by hour of day, with separate MPA and VPA tabs
     - 🚩 **Red Flag Summary (Excel):** Daily and daypart steps, active minutes,
       plausible wear minutes, activity span, and four exploratory data-coverage
-      indicators
+      indicators in a single worksheet
     
     ---
     
@@ -103,7 +106,7 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     """)
 
 # --- SIDEBAR ---
-st.sidebar.header("1. Timezone")
+st.sidebar.header("A. Timezone")
 profile_file = st.sidebar.file_uploader(
     'Optional: Upload "Profile.csv"',
     type=['csv'],
@@ -161,10 +164,10 @@ timezone_confirmed = st.sidebar.checkbox(
     value=False
 )
 
-st.sidebar.header("2. Participant Information")
+st.sidebar.header("B. Participant Information")
 manual_participant_id = st.sidebar.text_input("Enter Participant ID", value="Participant_1")
 
-st.sidebar.header("3. Intensity Thresholds (spm)")
+st.sidebar.header("C. Intensity Thresholds (spm)")
 st.sidebar.markdown(
     "Default intensity thresholds are MPA ≥100 spm and VPA ≥130 spm "
     "(O'Brien et al., 2018)."
@@ -172,7 +175,7 @@ st.sidebar.markdown(
 mpa = st.sidebar.number_input("MPA (Moderate Physical Activity) lower limit", value=100)
 vpa = st.sidebar.number_input("VPA (Vigorous Physical Activity) lower limit", value=130)
 
-st.sidebar.header("4. Cadence Band Thresholds (spm)")
+st.sidebar.header("D. Cadence Band Thresholds (spm)")
 st.sidebar.markdown(
     "Default band names and thresholds follow Tudor-Locke et al. (2011)."
 )
@@ -185,7 +188,7 @@ b5 = st.sidebar.number_input("Medium walking lower limit", value=80)
 b6 = st.sidebar.number_input("Brisk walking lower limit", value=100)
 b7 = st.sidebar.number_input("Faster locomotion/ambulation lower limit", value=120)
 
-st.sidebar.header("5. Data Upload")
+st.sidebar.header("E. Data Upload")
 uploaded_files = st.sidebar.file_uploader(
     "Upload Fitbit JSON files",
     type=['json'],
@@ -214,7 +217,7 @@ def format_clock(timestamp):
 
 
 def build_red_flag_workbook(part_df, participant_id):
-    """Build the exploratory daily/daypart data-coverage summary."""
+    """Build the single-sheet exploratory daily/daypart data-coverage summary."""
     red_flag_df = part_df[['Date', 'Steps']].copy()
     red_flag_df['Daypart'] = pd.cut(
         red_flag_df.index.hour,
@@ -238,7 +241,6 @@ def build_red_flag_workbook(part_df, participant_id):
 
     dates = sorted(red_flag_df['Date'].unique())
     rows = []
-    calculation_rows = []
     for day_number, date_value in enumerate(dates, start=1):
         day_df = red_flag_df[red_flag_df['Date'] == date_value]
         steps_by_part = (
@@ -253,11 +255,6 @@ def build_red_flag_workbook(part_df, participant_id):
             day_df.groupby('Daypart', observed=False)['Plausible_Wear_Minute']
             .sum().reindex(DAYPARTS, fill_value=0).astype(int)
         )
-        zero_by_part = (
-            day_df.groupby('Daypart', observed=False)['Prolonged_Zero_Step']
-            .sum().reindex(DAYPARTS, fill_value=0).astype(int)
-        )
-
         active_rows = day_df[day_df['Steps'] > 0]
         if active_rows.empty:
             activity_span_label = ""
@@ -293,19 +290,11 @@ def build_red_flag_workbook(part_df, participant_id):
             ),
             "RED FLAG" if total_wear < 600 else "",
         ])
-        calculation_rows.append([
-            day_number,
-            date_value,
-            *zero_by_part.tolist(),
-        ])
-
     output = BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         workbook = writer.book
         summary_name = f"{participant_id} Red Flag Summary"[:31]
         summary_sheet = workbook.create_sheet(summary_name)
-        calculation_sheet = workbook.create_sheet("Calculation Inputs")
-        notes_sheet = workbook.create_sheet("Method Notes")
         if "Sheet" in workbook.sheetnames:
             del workbook["Sheet"]
 
@@ -386,71 +375,6 @@ def build_red_flag_workbook(part_df, participant_id):
         summary_sheet.row_dimensions[2].height = 42
         summary_sheet.freeze_panes = "B3"
         summary_sheet.sheet_view.showGridLines = False
-
-        calculation_sheet.append([
-            "Day", "Date",
-            "Overnight Prolonged Zero-Step Minutes",
-            "Morning Prolonged Zero-Step Minutes",
-            "Afternoon Prolonged Zero-Step Minutes",
-            "Evening Prolonged Zero-Step Minutes",
-        ])
-        for row in calculation_rows:
-            calculation_sheet.append(row)
-        for cell in calculation_sheet[1]:
-            cell.fill = PatternFill("solid", fgColor="C97A28")
-            cell.font = Font(bold=True, color="FFFFFF")
-            cell.alignment = Alignment(
-                horizontal="center", vertical="center", wrap_text=True
-            )
-        calculation_sheet.freeze_panes = "A2"
-        calculation_sheet.sheet_view.showGridLines = False
-        calculation_sheet.column_dimensions["A"].width = 8
-        calculation_sheet.column_dimensions["B"].width = 14
-        for col in range(3, 7):
-            calculation_sheet.column_dimensions[get_column_letter(col)].width = 25
-
-        notes = [
-            ("Measure", "Definition"),
-            (
-                "Plausible Wear Minutes",
-                "Minutes not contained in an uninterrupted zero-step interval "
-                "lasting at least 90 consecutive minutes. Any step-positive "
-                "minute interrupts the interval."
-            ),
-            (
-                "Dayparts",
-                "Overnight 12:00–5:59 a.m.; Morning 6:00–11:59 a.m.; "
-                "Afternoon 12:00–5:59 p.m.; Evening 6:00–11:59 p.m."
-            ),
-            ("Total Steps flag", "Daily total steps <1,000."),
-            (
-                "One-daypart flag",
-                "One and only one daypart contains a step-positive minute; "
-                "zero-activity days are not flagged by this indicator."
-            ),
-            (
-                "Activity-span flag",
-                "Elapsed time from the first through last step-positive minute "
-                "is <360 minutes. Zero-activity days have no activity span."
-            ),
-            ("Plausible-wear flag", "Daily plausible wear is <600 minutes."),
-            (
-                "Interpretation",
-                "Plausible wear and activity-span indicators are exploratory "
-                "screening measures, not validated Fitbit exclusion criteria."
-            ),
-        ]
-        for row in notes:
-            notes_sheet.append(row)
-        for cell in notes_sheet[1]:
-            cell.fill = PatternFill("solid", fgColor="274C77")
-            cell.font = Font(bold=True, color="FFFFFF")
-        notes_sheet.column_dimensions["A"].width = 24
-        notes_sheet.column_dimensions["B"].width = 100
-        for row in notes_sheet.iter_rows():
-            for cell in row:
-                cell.alignment = Alignment(vertical="top", wrap_text=True)
-        notes_sheet.sheet_view.showGridLines = False
 
     output.seek(0)
     return output
@@ -771,9 +695,6 @@ elif uploaded_files:
             f"All outputs include {analysis_start_date:%B %d, %Y} through "
             f"{analysis_end_date:%B %d, %Y}."
         )
-        st.write("### Daily Summary Preview")
-        st.dataframe(final_summary)
-
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             csv_summary = final_summary.to_csv(index=False).encode('utf-8')

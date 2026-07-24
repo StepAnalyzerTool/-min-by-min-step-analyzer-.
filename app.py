@@ -302,22 +302,28 @@ def build_red_flag_summary(part_df, participant_id):
 
 
 def build_hourly_analysis(part_df):
-    """Build one CSV row per hour containing total recorded steps."""
-    hourly_analysis = (
+    """Build one CSV row per date with total steps in each labeled hour."""
+    hourly_totals = (
         part_df.groupby(["Participant_ID", "Date", "Hour"], as_index=False)["Steps"]
         .sum()
         .rename(columns={"Steps": "Total_Steps"})
     )
-    hourly_analysis["Hour_Label"] = hourly_analysis["Hour"].map(
+    hourly_totals["Hour_Label"] = hourly_totals["Hour"].map(
         dict(enumerate(hour_labels))
     )
-    hourly_analysis["Total_Steps"] = hourly_analysis["Total_Steps"].astype(int)
-    return hourly_analysis[
-        [
-            "Participant_ID", "Date", "Hour", "Hour_Label",
-            "Total_Steps"
-        ]
-    ].sort_values(["Date", "Hour"])
+    hourly_analysis = (
+        hourly_totals.pivot(
+            index=["Participant_ID", "Date"],
+            columns="Hour_Label",
+            values="Total_Steps"
+        )
+        .reindex(columns=hour_labels, fill_value=0)
+        .fillna(0)
+        .astype(int)
+        .reset_index()
+    )
+    hourly_analysis.columns.name = None
+    return hourly_analysis.sort_values("Date")
 
 
 if uploaded_files and not timezone_confirmed:

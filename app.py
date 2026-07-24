@@ -15,8 +15,8 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     This application processes raw, minute-by-minute step data exported from Fitbit devices 
     and automatically calculates daily physical activity summaries based on step cadence bands.
     It also produces a complete minute-level log, hourly activity tables, and an exploratory
-    red-flag summary designed to identify days that may warrant review for incomplete or
-    temporally restricted data coverage.
+    red-flag summary designed to help researcher identify days that may warrant review for incomplete
+    data coverage.
     
     ---
     

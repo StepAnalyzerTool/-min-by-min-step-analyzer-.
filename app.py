@@ -11,8 +11,8 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     st.markdown("""
     This application processes raw, minute-by-minute step data exported from Fitbit devices 
     and automatically calculates daily physical activity summaries based on step cadence bands.
-    It also produces a minute-level step log, hourly step totals, and an exploratory
-    red-flag summary designed to help researcher identify days that may warrant review for incomplete
+    It also produces a minute-level step log, an hourly steps summary, and an exploratory
+    red-flag summary designed to help researchers identify days that may warrant review for incomplete
     data coverage.
     
     ---
@@ -68,10 +68,10 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     Four output files are provided:
     - 📄 **Daily Summary (CSV):** Total steps; minutes in each of the cadence bands; and MPA, VPA, and total MVPA minutes per calendar day
     - 📄 **Minute-by-Minute Log (CSV):** A complete chronological record of the total steps recorded in each minute
-    - 📊 **Hourly Analysis (CSV):** Total steps recorded in each hour of the day
+    - 📊 **Hourly Steps Summary (CSV):** Total steps recorded in each hour of the day
     - 🚩 **Red Flag Summary (CSV):** Daily and daypart steps, active minutes,
-      plausible wear minutes, activity span, and four exploratory data-coverage
-      indicators
+      plausible wear minutes, activity span, prolonged zero-step diagnostics,
+      and exploratory data-coverage indicators
     
     ---
     
@@ -231,6 +231,8 @@ def build_red_flag_summary(part_df, participant_id):
     run_start = (~zero_step) | (~consecutive_minute)
     run_id = run_start.cumsum()
     zero_run_lengths = zero_step.groupby(run_id).transform('sum')
+    red_flag_df['Zero_Step_Run_ID'] = run_id.where(zero_step)
+    red_flag_df['Zero_Step_Run_Length'] = zero_run_lengths.where(zero_step, 0)
     red_flag_df['Prolonged_Zero_Step'] = (
         zero_step & zero_run_lengths.ge(90)
     ).astype(int)
@@ -270,6 +272,41 @@ def build_red_flag_summary(part_df, participant_id):
         total_active = int(active_by_part.sum())
         total_wear = int(wear_by_part.sum())
         active_dayparts = int((active_by_part > 0).sum())
+        zero_data_day = total_steps == 0
+
+        zero_rows = day_df.loc[
+            day_df['Zero_Step_Run_ID'].notna(),
+            ['Zero_Step_Run_ID', 'Zero_Step_Run_Length']
+        ]
+        zero_run_minutes_in_day = (
+            zero_rows.groupby('Zero_Step_Run_ID').size()
+            if not zero_rows.empty else pd.Series(dtype='int64')
+        )
+        longest_zero_step_interval = (
+            int(zero_run_minutes_in_day.max())
+            if not zero_run_minutes_in_day.empty else 0
+        )
+        prolonged_zero_step_intervals = int(
+            zero_rows.loc[
+                zero_rows['Zero_Step_Run_Length'].ge(90),
+                'Zero_Step_Run_ID'
+            ].nunique()
+        )
+
+        red_flag_total_steps = total_steps < 1000
+        red_flag_one_daypart = active_dayparts == 1
+        red_flag_short_span = (
+            activity_span_minutes is not None
+            and activity_span_minutes < 360
+        )
+        red_flag_low_wear = total_wear < 600
+        red_flag_values = [
+            zero_data_day,
+            red_flag_total_steps,
+            red_flag_one_daypart,
+            red_flag_short_span,
+            red_flag_low_wear,
+        ]
 
         rows.append({
             "Participant_ID": participant_id,
@@ -289,19 +326,24 @@ def build_red_flag_summary(part_df, participant_id):
             },
             "First_Last_Step_Positive_Time": activity_span_label,
             "Activity_Span_Minutes": activity_span_minutes,
-            "Red_Flag_Total_Steps_Under_1000": total_steps < 1000,
-            "Red_Flag_Activity_In_Only_One_Daypart": active_dayparts == 1,
-            "Red_Flag_Activity_Span_Under_6_Hours": (
-                activity_span_minutes is not None
-                and activity_span_minutes < 360
+            "Number_of_Active_Dayparts": active_dayparts,
+            "Longest_Zero_Step_Interval_Minutes": longest_zero_step_interval,
+            "Number_of_Zero_Step_Intervals_90_Minutes_or_Longer": (
+                prolonged_zero_step_intervals
             ),
-            "Red_Flag_Plausible_Wear_Under_600_Minutes": total_wear < 600,
+            "Zero_Data_Day": zero_data_day,
+            "Red_Flag_Total_Steps_Under_1000": red_flag_total_steps,
+            "Red_Flag_Activity_In_Only_One_Daypart": red_flag_one_daypart,
+            "Red_Flag_Activity_Span_Under_6_Hours": red_flag_short_span,
+            "Red_Flag_Plausible_Wear_Under_600_Minutes": red_flag_low_wear,
+            "Number_of_Red_Flags": sum(red_flag_values),
+            "Any_Red_Flag": any(red_flag_values),
         })
 
     return pd.DataFrame(rows)
 
 
-def build_hourly_analysis(part_df):
+def build_hourly_steps_summary(part_df):
     """Build one CSV row per date with total steps in each labeled hour."""
     hourly_totals = (
         part_df.groupby(["Participant_ID", "Date", "Hour"], as_index=False)["Steps"]
@@ -311,7 +353,7 @@ def build_hourly_analysis(part_df):
     hourly_totals["Hour_Label"] = hourly_totals["Hour"].map(
         dict(enumerate(hour_labels))
     )
-    hourly_analysis = (
+    hourly_steps_summary = (
         hourly_totals.pivot(
             index=["Participant_ID", "Date"],
             columns="Hour_Label",
@@ -322,8 +364,8 @@ def build_hourly_analysis(part_df):
         .astype(int)
         .reset_index()
     )
-    hourly_analysis.columns.name = None
-    return hourly_analysis.sort_values("Date")
+    hourly_steps_summary.columns.name = None
+    return hourly_steps_summary.sort_values("Date")
 
 
 if uploaded_files and not timezone_confirmed:
@@ -534,7 +576,7 @@ elif uploaded_files:
         ]
 
         # 5. BUILD HOURLY AND RED-FLAG CSV OUTPUTS
-        hourly_analysis = build_hourly_analysis(part_df)
+        hourly_steps_summary = build_hourly_steps_summary(part_df)
         red_flag_summary = build_red_flag_summary(part_df, manual_participant_id)
 
         # 6. DISPLAY RESULTS AND DOWNLOAD BUTTONS
@@ -563,11 +605,11 @@ elif uploaded_files:
                 mime="text/csv"
             )
         with col3:
-            csv_hourly = hourly_analysis.to_csv(index=False).encode('utf-8-sig')
+            csv_hourly = hourly_steps_summary.to_csv(index=False).encode('utf-8-sig')
             st.download_button(
-                "📊 Download Hourly Analysis (CSV)",
+                "📊 Download Hourly Steps Summary (CSV)",
                 data=csv_hourly,
-                file_name=f"{manual_participant_id}_Hourly_Analysis.csv",
+                file_name=f"{manual_participant_id}_Hourly_Steps_Summary.csv",
                 mime="text/csv"
             )
         with col4:

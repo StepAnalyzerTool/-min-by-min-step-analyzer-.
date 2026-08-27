@@ -3,8 +3,9 @@ import pandas as pd
 import json
 import pytz
 
-st.set_page_config(page_title="Step Cadence Analyzer", layout="wide")
-st.title("Minute-by-Minute Step Cadence Analyzer")
+st.set_page_config(page_title="The FITS Tool", layout="wide")
+st.title("The FITS Tool")
+st.subheader("Fitbit Intensity, Timing, and Steps Tool")
 
 # --- INSTRUCTIONS SECTION ---
 with st.expander("📋 How to Use This Tool", expanded=True):

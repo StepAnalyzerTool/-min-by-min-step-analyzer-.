@@ -34,19 +34,13 @@ with st.expander("📋 How to Use This Tool", expanded=True):
       in **"Physical Activity"**.
     - Upload files for one participant and one data source at a time. Avoid uploading
       overlapping exports of the same records.
-    - Optionally, **"Profile.csv"** from the **"Personal & Account"** folder so the
-      tool can identify the participant's Fitbit profile timezone
     
     ---
     
     **Step 2: Configure Settings**
     
-    Before processing the step data, you must confirm the participant's timezone. In the
-    sidebar under **A. Timezone**, either:
-    - Upload **"Profile.csv"** under **A** and allow the tool to select the timezone recorded in the
-      participant's Fitbit profile; or
-    - Manually select the **timezone** that matches the participant's location during data
-      collection if **"Profile.csv"** is unavailable
+    Before processing the step data, manually select the **timezone** that matches
+    the participant's location during data collection under **A. Timezone** in the sidebar.
 
     Review the displayed timezone and check the confirmation box before continuing. Also use
     the sidebar to:
@@ -148,41 +142,6 @@ def read_step_file(file):
 
 # --- SIDEBAR ---
 st.sidebar.header("A. Timezone")
-profile_file = st.sidebar.file_uploader(
-    'Optional: Upload "Profile.csv"',
-    type=['csv'],
-    accept_multiple_files=False,
-    help='In the unzipped Fitbit export, find Profile.csv in the "Personal & Account" folder.'
-)
-
-detected_timezone = None
-if profile_file is not None:
-    try:
-        profile_df = pd.read_csv(profile_file)
-        profile_file.seek(0)
-
-        if 'timezone' not in profile_df.columns or profile_df.empty:
-            st.sidebar.warning(
-                '⚠️ The uploaded CSV does not contain a usable "timezone" field. '
-                'Please select the timezone manually.'
-            )
-        else:
-            candidate_timezone = str(profile_df.loc[0, 'timezone']).strip()
-            if candidate_timezone in pytz.all_timezones:
-                detected_timezone = candidate_timezone
-                st.sidebar.success(
-                    f"✅ Timezone found in Profile.csv: {detected_timezone}"
-                )
-            else:
-                st.sidebar.warning(
-                    f'⚠️ The timezone in Profile.csv ("{candidate_timezone}") was not '
-                    'recognized. Please select the timezone manually.'
-                )
-    except Exception as e:
-        st.sidebar.warning(
-            f"⚠️ Profile.csv could not be read ({e}). Please select the timezone manually."
-        )
-
 timezone_options = [
     "America/New_York",
     "America/Chicago",
@@ -190,12 +149,9 @@ timezone_options = [
     "America/Los_Angeles",
     "UTC"
 ]
-if detected_timezone and detected_timezone not in timezone_options:
-    timezone_options.insert(0, detected_timezone)
-
-default_timezone = detected_timezone or "America/New_York"
+default_timezone = "America/New_York"
 timezone = st.sidebar.selectbox(
-    "Confirm or manually select timezone",
+    "Select participant timezone",
     timezone_options,
     index=timezone_options.index(default_timezone),
     help="This should match the participant's location during data collection."

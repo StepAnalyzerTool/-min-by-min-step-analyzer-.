@@ -20,20 +20,24 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     
     **Step 1: Export Your Fitbit Data**
     
-    Open [Google Takeout](https://takeout.google.com/) and sign in with the Google Account
-    associated with the participant's Fitbit. Deselect the other Google products and select
-    **Google Health** to export the participant's health data.
-    See [Google's download instructions](https://support.google.com/accounts/answer/3024190)
-    for step-by-step guidance on creating and downloading the archive.
+    **Google Takeout (as of November 2026)**
     
-    Once downloaded, unzip the archive. You will need:
-    - **Google Takeout CSV (format observed November 2026):** files named
-      **"steps_YYYY-MM-DD.csv"** in **"Physical Activity_GoogleData"**, containing
-      **timestamp**, **steps**, and **data source** columns.
-    - **Older Fitbit JSON:** files named **"steps-YYYY-MM-DD.json"**
-      in **"Physical Activity"**.
-    - Upload files for one participant and one data source at a time. Avoid uploading
-      overlapping exports of the same records.
+    1. Open [Google Takeout](https://takeout.google.com/) and sign in with the Google Account
+       associated with the participant's Fitbit.
+    2. Deselect the other Google products and select **Google Health**.
+    3. Follow [Google's download instructions](https://support.google.com/accounts/answer/3024190)
+       to create and download the archive. Choose **ZIP** as the archive file type.
+    4. Unzip the downloaded archive and open **"Physical Activity_GoogleData"**.
+    5. Locate the **"steps_YYYY-MM-DD.csv"** files. These contain **timestamp**,
+       **steps**, and **data source** columns.
+    
+    **Legacy Fitbit Files**
+    
+    For files previously downloaded through Fitbit, use the **"steps-YYYY-MM-DD.json"**
+    files from the **"Physical Activity"** folder in the unzipped archive.
+    
+    Upload files for one participant and one data source at a time. Avoid uploading
+    overlapping exports of the same records.
     
     ---
     

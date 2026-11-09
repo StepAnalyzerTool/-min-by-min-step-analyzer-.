@@ -27,8 +27,13 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     for step-by-step guidance on creating and downloading the archive.
     
     Once downloaded, unzip the archive. You will need:
-    - The files named **"steps-YYYY-MM-DD.json"** (e.g., steps-2012-10-01.json) 
-      from the **"Physical Activity"** folder
+    - **Google Takeout CSV (format observed November 2026):** files named
+      **"steps_YYYY-MM-DD.csv"** in **"Physical Activity_GoogleData"**, containing
+      **timestamp**, **steps**, and **data source** columns.
+    - **Older Fitbit JSON:** files named **"steps-YYYY-MM-DD.json"**
+      in **"Physical Activity"**.
+    - Upload files for one participant and one data source at a time. Avoid uploading
+      overlapping exports of the same records.
     - Optionally, **"Profile.csv"** from the **"Personal & Account"** folder so the
       tool can identify the participant's Fitbit profile timezone
     
@@ -59,7 +64,7 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     
     **Step 3: Upload Files and Select the Analysis Dates**
     
-    Upload all JSON step files for the participant using **E. Data Upload** in the sidebar.
+    Upload JSON or CSV step files for the participant using **E. Data Upload** in the sidebar.
     After the files are read and converted to local time, the app will display the earliest
     and latest available dates. Select the intended analysis start and end dates, then confirm
     the range. The same selected date range will be applied to all four output files.
@@ -103,6 +108,43 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     Journal of Environmental Research and Public Health, 15*(11), 2454.
     https://doi.org/10.3390/ijerph15112454
     """)
+
+
+def read_step_file(file):
+    """Read legacy Fitbit JSON or Google Takeout steps CSV (November 2026)."""
+    file.seek(0)
+    if file.name.lower().endswith('.csv'):
+        frame = pd.read_csv(file, dtype=str, encoding='utf-8-sig')
+        if not {'timestamp', 'steps', 'data source'}.issubset(frame.columns):
+            raise ValueError("CSV requires timestamp, steps, and data source columns.")
+        if frame['data source'].dropna().str.strip().nunique() > 1:
+            raise ValueError("Multiple data sources found; upload steps from one source at a time.")
+        raw_times = frame['timestamp'].str.strip()
+        if not raw_times.str.contains(r'(?:Z|[+-]\d{2}:?\d{2})$', na=False).all():
+            raise ValueError("CSV timestamps require Z (UTC) or an explicit timezone offset.")
+        times = raw_times.map(lambda value: pd.to_datetime(value, errors='raise', utc=True))
+        frame = frame.rename(columns={'timestamp': 'dateTime', 'steps': 'value'})
+    elif file.name.lower().endswith('.json'):
+        data = json.load(file)
+        if not isinstance(data, list) or not data:
+            raise ValueError("Expected a nonempty list of Fitbit step records.")
+        frame = pd.DataFrame(data)
+        if not {'dateTime', 'value'}.issubset(frame.columns):
+            raise ValueError("JSON requires dateTime and value fields.")
+        times = pd.to_datetime(frame['dateTime'], errors='raise', utc=True)
+    else:
+        raise ValueError("Upload a steps JSON or CSV file.")
+    if frame.empty:
+        raise ValueError("The file contains no step records.")
+    counts = pd.to_numeric(frame['value'], errors='raise')
+    if counts.isna().any() or ((counts < 0) | (counts % 1 != 0)).any():
+        raise ValueError("Step counts must be nonnegative whole numbers, without blanks.")
+    if times.isna().any():
+        raise ValueError("Missing timestamps are not supported.")
+    if ((times.dt.second != 0) | (times.dt.microsecond != 0) | (times.dt.nanosecond != 0)).any():
+        raise ValueError("Expected minute-aligned timestamps.")
+    return pd.DataFrame({'dateTime': times, 'value': counts.astype('int64')})
+
 
 # --- SIDEBAR ---
 st.sidebar.header("A. Timezone")
@@ -189,8 +231,8 @@ b7 = st.sidebar.number_input("Faster locomotion/ambulation lower limit", value=1
 
 st.sidebar.header("E. Data Upload")
 uploaded_files = st.sidebar.file_uploader(
-    "Upload Fitbit JSON files",
-    type=['json'],
+    "Upload Fitbit JSON or Google Takeout steps CSV files",
+    type=['json', 'csv'],
     accept_multiple_files=True
 )
 
@@ -380,38 +422,13 @@ elif uploaded_files:
 
     all_raw_dfs = []
 
-    # 1. READ ALL FILES WITH SCHEMA VALIDATION
+    # 1. READ AND VALIDATE JSON OR CSV STEP RECORDS
     for file in uploaded_files:
         try:
-            data = json.load(file)
-        except Exception:
-            st.warning(f"⚠️ Skipping `{file.name}`: Not a valid JSON file.")
-            continue
-
-        if not data or not isinstance(data, list):
-            st.warning(f"⚠️ Skipping `{file.name}`: File is empty or not in the expected Fitbit format.")
-            continue
-
-        temp_df = pd.DataFrame(data)
-
-        if 'dateTime' not in temp_df.columns or 'value' not in temp_df.columns:
-            st.warning(f"⚠️ Skipping `{file.name}`: Missing 'dateTime' or 'value' columns. Are you sure this is a steps file?")
-            continue
-
-        try:
-            temp_df['value'] = temp_df['value'].astype(int)
-            # Fitbit account-export step timestamps are interpreted as UTC.
-            # The UTC-aware values are converted to the participant's confirmed
-            # timezone after all uploaded files are combined.
-            temp_df['dateTime'] = pd.to_datetime(
-                temp_df['dateTime'],
-                errors='raise',
-                utc=True
-            )
+            temp_df = read_step_file(file)
         except Exception as e:
-            st.warning(f"⚠️ Skipping `{file.name}`: Data formatting error. ({e})")
+            st.warning(f"⚠️ Skipping `{file.name}`: {e}")
             continue
-
         all_raw_dfs.append(temp_df)
 
     if all_raw_dfs:

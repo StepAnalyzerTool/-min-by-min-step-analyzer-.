@@ -20,10 +20,11 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     
     **Step 1: Export Your Fitbit Data**
     
-    Visit the [Fitbit Data Export Help Page](https://support.google.com/googlehealth/answer/14236615?hl=en) 
-    for step-by-step instructions on downloading your Fitbit data archive. Note that instructions 
-    may vary slightly depending on whether the participant signs in with a Google Account or a 
-    Fitbit login.
+    Open [Google Takeout](https://takeout.google.com/) and sign in with the Google Account
+    associated with the participant's Fitbit. Deselect the other Google products and select
+    **Google Health** to export the participant's health data.
+    See [Google's download instructions](https://support.google.com/accounts/answer/3024190)
+    for step-by-step guidance on creating and downloading the archive.
     
     Once downloaded, unzip the archive. You will need:
     - The files named **"steps-YYYY-MM-DD.json"** (e.g., steps-2012-10-01.json) 

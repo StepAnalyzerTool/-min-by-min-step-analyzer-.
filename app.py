@@ -20,6 +20,9 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     
     **Step 1: Export Your Fitbit Data**
     
+    Upload files for one participant and one data source at a time. Avoid uploading
+    overlapping exports of the same records.
+    
     **Google Takeout (as of November 2026)**
     
     1. Open [Google Takeout](https://takeout.google.com/) and sign in with the Google Account
@@ -35,9 +38,6 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     
     For files previously downloaded through Fitbit, use the **"steps-YYYY-MM-DD.json"**
     files from the **"Physical Activity"** folder in the unzipped archive.
-    
-    Upload files for one participant and one data source at a time. Avoid uploading
-    overlapping exports of the same records.
     
     ---
     

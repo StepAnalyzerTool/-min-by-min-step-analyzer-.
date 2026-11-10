@@ -914,7 +914,7 @@ Flags are calculated for each calendar day in your selected timezone, using reco
 - **Total_Step_Positive_Minutes:** Minutes with at least one step.
 - **Number_of_Red_Flags:** Number of red flag criteria met that day.
 
-**Additional columns in the downloaded file**
+**Additional columns in the downloaded Red Flags file**
 
 - **Participant_ID** and **Day:** The participant label and day number within the selected date range.
 - **Expected_Minutes:** Total minutes expected that day.

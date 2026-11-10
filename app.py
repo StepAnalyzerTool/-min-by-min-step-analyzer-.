@@ -58,8 +58,7 @@ Timezone conversion can move records to a different date or hour, changing daily
   timezone's standard offset in the current year; check the displayed offset for historical
   data or locations whose standard time has changed.
 
-For locations that changed their daylight-saving policy, check the setting for your data
-collection period. Changing timezone settings requires confirmation and preparing the files
+Some locations have started or stopped observing daylight saving time. Choose the setting that applied when the data were collected, not necessarily the setting used today. Changing timezone settings requires confirmation and preparing the files
 again. The selected settings are recorded in the exported files.
         """)
     st.markdown("""

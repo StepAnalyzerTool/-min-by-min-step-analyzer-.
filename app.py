@@ -617,6 +617,9 @@ elif uploaded_files:
         all_raw_dfs.append(temp_df)
         accepted_files.append({'File': file.name, 'Step records': len(temp_df)})
 
+    if accepted_files and not rejected_files:
+        st.success("✅ Files Reviewed")
+
     if rejected_files:
         st.subheader("Upload Review")
         st.write(f"**Accepted files: {len(accepted_files)}**")

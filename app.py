@@ -98,7 +98,7 @@ with st.expander("Step 3: Upload Files", expanded=False):
 
 **Differences between file formats**
 
-- **Google Takeout CSV (as of November 2026):** Google exports only include minutes with 1 or more steps; minutes with 0 steps are not listed. The tool labels any missing minutes as NA. An absent minute does not distinguish between wearing the Fitbit without taking steps and not wearing it.
+- **Google Takeout CSV (as of November 2026):** Google exports only include minutes with 1 or more steps (positive step counts); minutes with 0 steps are not listed. The tool labels any missing minutes as NA. An absent minute does not distinguish between wearing the Fitbit without taking steps and not wearing it.
 - **Older Fitbit JSON:** These files contain recorded zeros as well as positive step counts.
   The tool preserves those zeros and labels any missing minutes as NA.
 

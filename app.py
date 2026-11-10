@@ -881,6 +881,7 @@ elif uploaded_files:
         decisions['Exclusion_Reason'] = ''
         if review_choice == "Yes":
             st.subheader("Day Selection")
+            st.write("Days may be excluded for any study-specific reason. Red Flag indicators are summarized, but individual days must still be selected for exclusion.")
             include_all = st.checkbox(
                 "Include all dates",
                 value=False, key=f"include_all_v2_{review_context}"
@@ -889,10 +890,30 @@ elif uploaded_files:
                 st.info("Uncheck Include all dates to edit exclusions and reasons.")
             with st.expander("About red flags and exclusions", expanded=False):
                 st.markdown("""
-- Flags suggest days to review; they do not establish nonwear or automatically exclude days.
-- Days may be excluded for any study-specific reason.
-- **Include all dates** overrides individual exclusions.
+**How red flags are calculated**
+
+Flags are calculated for each calendar day in your selected timezone, using recorded step values.
+
+- **No recorded data:** No minutes have a step record.
+- **Recorded steps total zero:** At least one minute has a record, but all recorded step counts are zero. This does not mean the entire day was recorded.
+- **Recorded steps below 1,000:** The sum of recorded steps is less than 1,000. Days with recorded zeros also meet this criterion; days with no records do not.
+- **Steps in only one daypart:** Minutes with one or more steps occur in exactly one of four periods: Overnight (midnight–5:59 a.m.), Morning (6 a.m.–11:59 a.m.), Afternoon (noon–5:59 p.m.), or Evening (6 p.m.–11:59 p.m.).
+- **First-to-last positive minute span below 6 hours:** Fewer than 360 elapsed minutes separate the first and last minutes with steps. A day with only one step-positive minute has a span of zero; a day with none does not receive this flag. This span does not measure continuous activity or wear time.
+
+**Number of red flags** counts how many of these five criteria are met. Criteria can overlap; the count is not a validated wear-time or data-quality score.
+
+**Additional information in the Red Flag Summary**
+
+- Daily and daypart step totals sum recorded counts. Step-positive minutes count records with one or more steps.
+- Recorded minutes have a source record, including explicit zeros. Missing minutes have no record and are labeled NA. Expected minutes reflect the selected timezone and daylight-saving settings.
+- Zero-step intervals consist of consecutive minutes with explicitly recorded zeros. Missing minutes interrupt these intervals. The file reports the longest interval within each day and the number of intervals lasting at least 90 minutes that overlap that day. Intervals may cross midnight. These measures do not add to the red flag count.
+
+**How to use the indicators**
+
+- Flags suggest days to review; they do not establish nonwear or automatically exclude days. Apply and report your study's inclusion criteria.
 - Missing minutes do not establish inactivity or nonwear.
+- **Include all dates** overrides individual exclusions.
+- The Red Flag Summary retains every date and any exclusion reasons. Excluded dates are removed from the other analysis exports and participant averages.
                 """)
             review = red_flag_summary.copy()
             flag_labels = {

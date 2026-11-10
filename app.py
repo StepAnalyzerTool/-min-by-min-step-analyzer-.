@@ -1161,8 +1161,9 @@ One row per included day, with a step total for each clock hour.
 - **Participant_ID and Date:** Identifies the participant and day.
 - **Hourly steps:** Adds recorded steps within the hour. For example, 9:00–10:00 a.m. includes 9:00 through 9:59 a.m.  
   **Formula:** Hourly steps = sum of recorded minute-level steps in that hour.
-- **Recorded and missing minutes:** Shows how much data is available for each hour.  
-  **Formula:** Missing minutes = expected minutes in the hour − recorded minutes.
+- **Recorded and missing minutes:** Shows how many minutes have data and how many are missing for each hour.  
+  **Formula:** Missing minutes = expected minutes − recorded minutes.  
+  **Note:** Expected minutes are 60, except for skipped (0) or repeated (120) hours when daylight-saving adjustments apply.
 
 **Notes:** Recorded zeros remain zero. An hour with no records has NA steps. When daylight-saving adjustments apply, the repeated fall hour is combined into one total; the skipped spring hour has NA steps and zero expected minutes.
 """),

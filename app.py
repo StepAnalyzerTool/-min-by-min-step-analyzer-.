@@ -317,18 +317,10 @@ st.sidebar.header("B. Participant Information")
 manual_participant_id = st.sidebar.text_input("Enter Participant ID", value="Participant_1")
 
 st.sidebar.header("C. Intensity Thresholds (spm)")
-st.sidebar.markdown(
-    "Default intensity thresholds are MPA ≥100 spm and VPA ≥130 spm "
-    "(O'Brien et al., 2018)."
-)
 mpa = st.sidebar.number_input("MPA (Moderate Physical Activity) lower limit", value=100)
 vpa = st.sidebar.number_input("VPA (Vigorous Physical Activity) lower limit", value=130)
 
 st.sidebar.header("D. Cadence Band Thresholds (spm)")
-st.sidebar.markdown(
-    "Default band names and thresholds follow Tudor-Locke et al. (2011)."
-)
-st.sidebar.markdown("---")
 b1 = st.sidebar.number_input("Incidental movement lower limit", value=1)
 b2 = st.sidebar.number_input("Sporadic movement lower limit", value=20)
 b3 = st.sidebar.number_input("Purposeful steps lower limit", value=40)

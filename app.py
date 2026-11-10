@@ -1050,6 +1050,7 @@ elif uploaded_files:
         summary['Total_MPA_Minutes'] = daily_intensity['Total_MPA_Minutes']
         summary['Total_VPA_Minutes'] = daily_intensity['Total_VPA_Minutes']
         summary['Total_MVPA_Minutes'] = summary['Total_MPA_Minutes'] + summary['Total_VPA_Minutes']
+        summary['Total_Weighted_MVPA_Minutes'] = summary['Total_MPA_Minutes'] + 2 * summary['Total_VPA_Minutes']
         summary['Total_Daily_Steps'] = part_df.groupby(['Participant_ID', 'Date'])['Steps'].sum(min_count=1)
         # Step sums use the same cadence assignments as the minute counts.
         band_steps = part_df.groupby(
@@ -1085,6 +1086,7 @@ elif uploaded_files:
             'Total_VPA_Minutes',
             'Total_VPA_Steps',
             'Total_MVPA_Minutes',
+            'Total_Weighted_MVPA_Minutes',
             'Total_MVPA_Steps',
         ] + peak_columns + [column for pair in zip(labels, band_step_columns) for column in pair]
 
@@ -1132,10 +1134,12 @@ One row per included day.
   **Formula:** Daily steps = sum of minute-level steps.
 - **Step-positive minutes:** Counts minutes with at least one step.  
   **Formula:** Step-positive minutes = number of minutes with steps > 0.
-- **MPA and VPA minutes:** Counts minutes meeting your moderate or vigorous activity thresholds. Defaults are 100–129 steps for MPA and 130 or more for VPA.  
+- **MPA and VPA minutes:** Counts minutes meeting your moderate or vigorous activity thresholds.  
   **Formula:** MPA minutes = count of minutes with MPA threshold ≤ steps < VPA threshold. VPA minutes = count of minutes with steps ≥ VPA threshold.
 - **MVPA minutes:** Combines moderate and vigorous minutes.  
   **Formula:** MVPA minutes = MPA minutes + VPA minutes.
+- **Weighted MVPA minutes:** Gives each vigorous minute twice the weight of a moderate minute.  
+  **Formula:** Weighted MVPA minutes = MPA minutes + (2 × VPA minutes).
 - **Steps by intensity:** Adds the steps within each intensity category.  
   **Formula:** MPA or VPA steps = sum of steps in that category. MVPA steps = MPA steps + VPA steps.
 - **Cadence bands:** Reports minutes and steps within each selected steps-per-minute range.  

@@ -6,6 +6,7 @@ import hashlib
 from html import escape
 from datetime import datetime
 from collections import Counter
+from pathlib import Path
 
 st.set_page_config(page_title="The FITS Tool", layout="wide")
 st.markdown("""
@@ -58,6 +59,41 @@ st.subheader("Fitbit Intensity, Timing, and Steps Tool")
 st.markdown("""
 This tool processes raw, minute-by-minute step data exported from Fitbit devices and calculates daily physical activity summaries based on user-selected cadence bands. It also produces a minute-level step log, an hourly steps summary, and a red-flag summary designed to help researchers identify days that may warrant review for incomplete data coverage.
 """)
+with st.expander("Sample Data for FITS Tool Review", expanded=False):
+    st.markdown("""
+Raw data files for two participants in the manuscript *The FITS Tool: A Customizable Analyzer for Fitbit Minute-Level Step Data* are provided here for testing the FITS Tool.
+
+**Step 1: Download the sample files**
+
+Both data sets were downloaded from Fitbit in 2022 and are JSON files. Download and unzip the ZIP file below. It contains two folders: one with Juliana's files and one with Evelyn's files.
+    """)
+    sample_data_path = Path(__file__).resolve().parent / "FITS_Tool_Review_Sample_Data.zip"
+    st.download_button(
+        "Download FITS Tool review sample data (ZIP)",
+        data=sample_data_path.read_bytes(),
+        file_name="FITS_Tool_Review_Sample_Data.zip",
+        mime="application/zip",
+        key="fits_review_sample_data_download",
+    )
+    st.markdown("""
+**Step 2: Configure settings**
+
+- **A. Time zone:** For both participants, select **Eastern Time (America/New_York)** and select **Daylight saving time observed**.
+- **B. Participant ID:** Enter **Juliana** or **Evelyn**, depending on whose files you are analyzing.
+- **C. Intensity thresholds** and **D. Cadence-band thresholds:** Use the defaults.
+
+**Step 3: Upload files**
+
+Upload Juliana's four JSON files or Evelyn's four JSON files from the folder you unzipped in Step 1. Process one participant at a time.
+
+**Step 4: Select dates and exclusions**
+
+- **Juliana:** Start date **January 29, 2022**; end date **April 27, 2022**.
+  - **March 30–31:** Exclude these dates because Juliana reported not wearing the Fitbit; no data were recorded.
+  - **April 1 and April 27:** Exclude these dates after red-flag review because each had fewer than 1,000 recorded steps.
+- **Evelyn:** Start date **March 23, 2022**; end date **April 28, 2022**. No dates are excluded.
+    """)
+
 with st.expander("📋 How to Use This Tool", expanded=False):
 
 
@@ -1290,6 +1326,7 @@ One row per participant, summarizing the included days.
 
     else:
         st.error("❌ No valid Fitbit data found in the uploaded files. Please check your files and try again.")
+
 
 
 

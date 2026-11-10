@@ -1134,6 +1134,7 @@ One row per minute on each included day, in time order.
             ("Daily Summary", final_summary, "Daily_Summaries", """
 One row per included day.
 
+- **Participant_ID and Date:** Identifies the participant and day.
 - **Daily steps:** Adds all recorded steps that day.  
   **Formula:** Daily steps = sum of minute-level steps.
 - **Step-positive minutes:** Counts minutes with at least one step.  
@@ -1152,21 +1153,23 @@ One row per included day.
   **Formula:** Peak N-minute cadence = sum of the N highest minute counts ÷ N.  
   **Note:** A peak is NA if fewer than N recorded minutes are available.
 
-Recorded zeros are retained; missing minutes (NA) are excluded from activity calculations. A day with no records has NA activity measures.
+**Notes:** Recorded zeros are retained; missing minutes (NA) are excluded from activity calculations. A day with no records has NA activity measures.
 """),
             ("Hourly Steps Summary", hourly_steps_summary, "Hourly_Steps_Summary", """
 One row per included day, with a step total for each clock hour.
 
+- **Participant_ID and Date:** Identifies the participant and day.
 - **Hourly steps:** Adds recorded steps within the hour. For example, 9:00–10:00 a.m. includes 9:00 through 9:59 a.m.  
   **Formula:** Hourly steps = sum of recorded minute-level steps in that hour.
 - **Recorded and missing minutes:** Shows how much data is available for each hour.  
   **Formula:** Missing minutes = expected minutes in the hour − recorded minutes.
 
-Recorded zeros remain zero. An hour with no records has NA steps. When daylight-saving adjustments apply, the repeated fall hour is combined into one total; the skipped spring hour has NA steps and zero expected minutes.
+**Notes:** Recorded zeros remain zero. An hour with no records has NA steps. When daylight-saving adjustments apply, the repeated fall hour is combined into one total; the skipped spring hour has NA steps and zero expected minutes.
 """),
             ("Red Flag Summary", red_flag_summary, "Red_Flag_Summary", """
 One row per selected day, including excluded days and their reasons.
 
+- **Participant_ID, Day, and Date:** Identifies the participant, day number, and calendar date.
 - **Daily and daypart steps:** Adds steps for the whole day and for Overnight (midnight–5:59 a.m.), Morning (6–11:59 a.m.), Afternoon (noon–5:59 p.m.), and Evening (6–11:59 p.m.).  
   **Formula:** Steps = sum of recorded steps in that period.
 - **Step-positive minutes:** Counts minutes with at least one step.  
@@ -1175,15 +1178,20 @@ One row per selected day, including excluded days and their reasons.
   **Formula:** Missing minutes = expected minutes − recorded minutes.
 - **Activity span:** Time between the first and last minutes with steps.  
   **Formula:** Activity span = last step-positive time − first step-positive time.
-- **Zero-step periods:** Reports the longest stretch of recorded zeros within the day and the number of stretches lasting at least 90 minutes that overlap it. Missing minutes break a stretch. A stretch crossing midnight can count on both days.
+- **Zero-step periods:** Reports the longest stretch of recorded zeros within the day and the number of stretches lasting at least 90 minutes that overlap it.
 - **Red flags:** Identifies no data, recorded steps totaling zero, fewer than 1,000 steps, steps in only one daypart, and an activity span under 6 hours.  
   **Formula:** Number of red flags = count of these criteria met.
 
-Flags prompt review; they do not automatically exclude days. Zero-step periods do not add to the flag count. **Included_in_Participant_Summary** records your decision; **Exclusion_Reason** records your note.
+- **Included_in_Participant_Summary:** Records whether you included the day.
+- **Exclusion_Reason:** Records your optional reason for excluding the day.
+
+**Notes:** Flags prompt review; they do not automatically exclude days. Zero-step periods do not add to the flag count. Missing minutes break a zero-step stretch. A stretch crossing midnight can count on both days.
 """),
             ("Participant Averages", participant_averages, "Participant_Averages", """
 One row per daily measure, averaged across included days.
 
+- **Participant_ID, Timezone, Analysis_Start_Date, and Analysis_End_Date:** Identifies the participant and analysis settings.
+- **Measure:** The daily measure being averaged.
 - **Mean_Per_Day:** The average of the available daily values.  
   **Formula:** Mean = sum of included daily values ÷ contributing days.
 - **Contributing_Days:** Included days with a value for that measure.
@@ -1191,7 +1199,7 @@ One row per daily measure, averaged across included days.
   **Formula:** Included days with NA = included days − contributing days.
 - **Days_In_Date_Range, Included_Days, and Excluded_Days:** Reports your date selections.
 
-Recorded zeros count; NA values and excluded days do not. For example, 4,000, 6,000, and NA average to 5,000 across two contributing days. If no day contributes, the mean is NA.
+**Notes:** Recorded zeros are included in averages; NA values and excluded days are omitted. For example, 4,000, 6,000, and NA average to 5,000 across two contributing days. If no day contributes, the mean is NA.
 """),
         ]
         for title, frame, suffix, explanation in downloads:

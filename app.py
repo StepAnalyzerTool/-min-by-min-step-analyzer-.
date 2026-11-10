@@ -87,38 +87,26 @@ with st.expander("Step 3: Upload Files", expanded=False):
 - Use **E. Data Upload** on the left to upload Google Takeout steps CSV files or older Fitbit JSON files.
 - Upload files for one participant and one data source at a time.
     """)
-    with st.expander("Google Takeout CSV files: contents and how they are used", expanded=False):
+    with st.expander("Recorded zeros, missing minutes, and file formats", expanded=False):
         st.markdown("""
-Google Takeout step CSV files contain timestamps, step counts, and a data-source label.
-Exports only contain minutes with 1 or more step counts. No minutes with 0 step counts are listed. An absent minute does not distinguish between wearing the Fitbit without taking steps and not wearing it.
+- **Recorded 0:** The tool keeps the value as zero. It counts as a recorded minute with no
+  steps and is included in calculations, including the zero-step cadence band and peak cadence.
+  A zero alone does not establish whether the Fitbit was worn.
+- **Missing minute:** When a minute has no record in the source file, the tool labels it
+  **NA**, rather than zero. It is excluded from activity calculations but counted in
+  missing-minute coverage totals. A day with no records has NA activity measures and does
+  not contribute to averages of those measures.
 
-The tool uses each timestamp and step count to assign records to the selected timezone,
-date, hour, cadence band, and activity-intensity category. If a file contains an explicit
-zero-step record, the tool preserves that zero.
+**Differences between file formats**
 
-Minutes with no source record are labeled **NA**. They are excluded from activity calculations,
-including step totals, intensity and cadence measures, and peak cadence. They are counted
-in missing-minute coverage totals. A day with no records has NA activity measures and does
-not contribute to averages of those measures.
+- **Google Takeout CSV (as of November 2026):** Exports only include minutes with 1 or more
+  steps; minutes with 0 steps are not listed. An absent minute does not distinguish between
+  wearing the Fitbit without taking steps and not wearing it.
+- **Older Fitbit JSON:** These files contain recorded zeros as well as positive step counts.
+  The tool preserves those zeros and labels any missing minutes as NA.
 
-Avoid uploading overlapping exports of the same records.
-        """)
-    with st.expander("Older Fitbit JSON files: contents and how they are used", expanded=False):
-        st.markdown("""
-Older Fitbit step JSON files contain timestamps and step counts, including explicit records
-of **0 steps**. The tool preserves these recorded zeros. A recorded zero indicates that
-no steps were recorded for that minute; it does not by itself establish that the Fitbit was worn.
-
-The tool uses each timestamp and step count to assign records to the selected timezone,
-date, hour, cadence band, and activity-intensity category. Recorded zeros count toward the
-zero-step cadence band and are eligible for peak-cadence calculations.
-
-Minutes with no source record are labeled **NA**, rather than zero. They are excluded from
-activity calculations, including step totals, intensity and cadence measures, and peak cadence.
-They are counted in missing-minute coverage totals. A day with no records has NA activity
-measures and does not contribute to averages of those measures.
-
-Avoid uploading overlapping exports of the same records.
+The tool uses the timestamps and step counts to calculate summaries for the selected
+timezone and dates. Avoid uploading overlapping exports of the same records.
         """)
 
 with st.expander("Step 4: Select the Analysis Dates", expanded=False):

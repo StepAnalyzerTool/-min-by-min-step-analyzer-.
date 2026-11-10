@@ -110,7 +110,8 @@ with st.expander("Step 3: Upload Files", expanded=False):
 with st.expander("Step 4: Select the Analysis Dates", expanded=False):
     st.markdown("""
 - Select and confirm your analysis start and end dates. Use **Change dates** to revise them.
-- Choose whether to **review red flags and/or exclude individual days**. If Yes, check **Exclude** beside any dates you want to omit and optionally enter a reason.
+- Choose whether to **review red flags and/or exclude individual days**. If Yes, check **Exclude** beside any dates you want to omit, optionally enter a reason, then click **Finalize days**. Choosing **Include all dates** or **No** completes day selection immediately.
+- Completed selections collapse into **Individual days selected**. Use **Change days** to reopen your choices.
 - Excluded dates are removed from the daily, minute-level, and hourly files and from participant averages. The **Red Flag Summary** retains every date.
     """)
     with st.expander("More about dates, red flags, and exclusions", expanded=False):
@@ -869,125 +870,163 @@ elif uploaded_files:
             + repr((batch_hash.hexdigest(), manual_participant_id, timezone_description, observes_dst, analysis_start_date, analysis_end_date,
                     mpa, vpa, bins)).encode('utf-8')
         ).hexdigest()
-        review_choice = st.radio(
-            "Would you like to review red flags and/or exclude individual days?",
-            ["Yes", "No"], index=None, horizontal=True, key=f"review_choice_{review_context}"
-        )
-        if review_choice is None:
-            st.info("Choose Yes or No to continue.")
-            st.stop()
-        decisions = red_flag_summary[['Date']].copy()
-        decisions['Included_in_Participant_Summary'] = True
-        decisions['Exclusion_Reason'] = ''
-        if review_choice == "Yes":
-            st.subheader("Day Selection")
-            st.write("Days may be excluded for any study-specific reason. Red Flag indicators are summarized, but individual days must still be selected for exclusion.")
-            include_all = st.checkbox(
-                "Include all dates",
-                value=False, key=f"include_all_v2_{review_context}"
-            )
-            if include_all:
-                st.info("Uncheck Include all dates to edit exclusions and reasons.")
-            with st.expander("About red flags and exclusions", expanded=False):
-                st.markdown("""
-**How to use the indicators**
-
-- Red Flags suggest days to review; they do not establish nonwear or automatically exclude days.
-- Apply and note your study's exclusion/inclusion criteria.
-- Missing minutes do not establish inactivity or nonwear.
-- The Red Flag Summary file retains every date and any exclusion reasons. Excluded dates are removed from the other analysis exports and participant averages.
-
-**How red flags are calculated**
-
-Flags are calculated for each calendar day in your selected timezone, using recorded step values.
-
-- **No recorded data:** No minutes have a step record.
-- **Recorded steps total zero:** At least one minute has a record, but all recorded step counts are zero.
-- **Recorded steps below 1,000:** The sum of recorded steps is less than 1,000.
-- **Steps in only one daypart:** Minutes with one or more steps occur in exactly one of four periods: Overnight (midnight–5:59 a.m.), Morning (6 a.m.–11:59 a.m.), Afternoon (noon–5:59 p.m.), or Evening (6 p.m.–11:59 p.m.).
-- **First-to-last positive minute span below 6 hours:** Fewer than 360 elapsed minutes separate the first and last minutes with steps. A day with only one step-positive minute has a span of zero; a day with none does not receive this flag.
-
-**Number of red flags** counts how many of these five criteria are met. Criteria can overlap.
-
-**Columns shown in the preview**
-
-- **Exclude:** Check to remove that day from analysis outputs and participant averages.
-- **Date:** The day being reviewed.
-- **Exclusion reason (optional):** Your note explaining why you excluded the day.
-- **Red flag reasons:** The indicators triggered for that day.
-- **Total_Steps:** Total recorded steps that day.
-- **Recorded_Minutes:** Minutes with data, including recorded zeros.
-- **Missing_Minutes:** Minutes without data (NA).
-- **Total_Step_Positive_Minutes:** Minutes with at least one step.
-- **Number_of_Red_Flags:** Number of red flag criteria met that day.
-
-**Additional columns in the downloaded Red Flags file**
-
-- **Participant_ID** and **Day:** The participant label and day number within the selected date range.
-- **Expected_Minutes:** Total minutes expected that day.
-- **Overnight_Steps**, **Morning_Steps**, **Afternoon_Steps**, and **Evening_Steps:** Recorded steps in each daypart. Columns ending in **_Step_Positive_Minutes**, **_Recorded_Minutes**, and **_Missing_Minutes** give the corresponding minute counts for each daypart.
-- **First_Last_Step_Positive_Time:** Times of the first and last minutes with steps.
-- **Activity_Span_Minutes:** Minutes elapsed between those times.
-- **Number_of_Active_Dayparts:** Dayparts with at least one step.
-- **Longest_Zero_Step_Interval_Minutes:** Longest stretch of recorded zeros within the day.
-- **Number_of_Zero_Step_Intervals_90_Minutes_or_Longer:** Number of stretches of recorded zeros lasting at least 90 minutes that overlap the day. Missing minutes break a stretch. Zero-step stretches are reported but do not trigger red flags.
-- **No_Recorded_Data_Day**, **Recorded_Zero_Steps_Day**, **Red_Flag_Total_Steps_Under_1000**, **Red_Flag_Activity_In_Only_One_Daypart**, and **Red_Flag_Activity_Span_Under_6_Hours:** Separate columns showing whether each criterion is met.
-- **Any_Red_Flag:** Whether the day meets at least one criterion.
-- **Included_in_Participant_Summary** and **Exclusion_Reason:** Your inclusion decision and optional reason. The file retains all dates.
-- **Analysis_Timezone** and **Daylight_Saving_Observed:** Your selected time settings.
-
-                """)
-            review = red_flag_summary.copy()
-            flag_labels = {
-                'No_Recorded_Data_Day': 'No recorded data',
-                'Recorded_Zero_Steps_Day': 'Recorded steps total zero',
-                'Red_Flag_Total_Steps_Under_1000': 'Recorded steps below 1,000',
-                'Red_Flag_Activity_In_Only_One_Daypart': 'Steps in only one daypart',
-                'Red_Flag_Activity_Span_Under_6_Hours': 'First-to-last positive minute span below 6 hours',
-            }
-            review['Flag_Reasons'] = review.apply(
-                lambda row: '; '.join(label for column, label in flag_labels.items()
-                                      if pd.notna(row[column]) and bool(row[column])), axis=1
-            )
-            review.insert(0, 'Exclude_from_Analysis', False)
-            review.insert(1, 'Exclusion_Reason', '')
-            leading_columns = [
-                'Exclude_from_Analysis', 'Date', 'Exclusion_Reason', 'Flag_Reasons',
-                'Total_Steps', 'Recorded_Minutes', 'Missing_Minutes',
-                'Total_Step_Positive_Minutes', 'Number_of_Red_Flags',
-            ]
-            review = review[leading_columns]
-            with st.expander("Red Flag Summary", expanded=True):
-                flagged = review.loc[review['Flag_Reasons'].ne('')]
-                if flagged.empty:
-                    st.write("No dates meet the current red flag criteria.")
-                for _, row in flagged.iterrows():
-                    st.markdown(f"**{row['Date']}** — {row['Flag_Reasons']}")
-            st.write("Check **Exclude** to remove a day from analysis outputs. The Red Flag Summary retains all dates.")
-            st.caption("To add an optional reason, double-click its cell, type your note, and press Enter.")
-            edited_review = st.data_editor(
-                review, hide_index=True, use_container_width=True,
-                key=f"day_review_v4_{review_context}_{include_all}",
-                disabled=True if include_all else [
-                    c for c in review.columns if c not in ('Exclude_from_Analysis', 'Exclusion_Reason')
-                ],
-                column_config={
-                    'Exclude_from_Analysis': st.column_config.CheckboxColumn('Exclude', width='small'),
-                    'Date': st.column_config.DateColumn('Date', format='YYYY-MM-DD', width='small'),
-                    'Flag_Reasons': st.column_config.TextColumn('Red flag reasons', width='large'),
-                    'Exclusion_Reason': st.column_config.TextColumn('Exclusion reason (optional)', width='large'),
-                }
-            )
-            decisions = edited_review[['Date', 'Exclude_from_Analysis', 'Exclusion_Reason']].copy()
-            if include_all:
-                decisions['Exclude_from_Analysis'] = False
-            decisions['Included_in_Participant_Summary'] = ~decisions['Exclude_from_Analysis'].fillna(False).astype(bool)
-            decisions['Exclusion_Reason'] = decisions['Exclusion_Reason'].fillna('').where(
-                ~decisions['Included_in_Participant_Summary'], ''
-            )
-            decisions = decisions[['Date', 'Included_in_Participant_Summary', 'Exclusion_Reason']]
+        day_revision = st.session_state.get('day_selection_revision', 0)
+        finalized_days = st.session_state.get('finalized_days')
+        if finalized_days is not None and finalized_days['context'] != review_context:
+            st.session_state.pop('finalized_days', None)
+            finalized_days = None
+        if finalized_days is not None:
+            decisions = finalized_days['decisions'].copy()
+            review_choice = finalized_days['choice']
+            days_done_col, change_days_col = st.columns([5, 1])
+            with days_done_col:
+                st.checkbox("Individual days selected", value=True, disabled=True,
+                            key=f"days_selected_{review_context}_{day_revision}")
+            with change_days_col:
+                if st.button("Change days", key=f"change_days_{review_context}_{day_revision}"):
+                    st.session_state['day_selection_draft'] = finalized_days
+                    st.session_state.pop('finalized_days', None)
+                    st.session_state.pop('prepared_output_context', None)
+                    st.session_state['day_selection_revision'] = day_revision + 1
+                    st.rerun()
         else:
-            st.info("All dates will be included. A Red Flag Summary will still be available as a download.")
+            st.session_state.pop('prepared_output_context', None)
+            review_choice = st.radio(
+                "Would you like to review red flags and/or exclude individual days?",
+                ["Yes", "No"], index=None, horizontal=True, key=f"review_choice_{review_context}_{day_revision}"
+            )
+            if review_choice is None:
+                st.info("Choose Yes or No to continue.")
+                st.stop()
+            decisions = red_flag_summary[['Date']].copy()
+            decisions['Included_in_Participant_Summary'] = True
+            decisions['Exclusion_Reason'] = ''
+            if review_choice == "Yes":
+                st.subheader("Day Selection")
+                st.write("Days may be excluded for any study-specific reason. Red Flag indicators are summarized, but individual days must still be selected for exclusion.")
+                include_all = st.checkbox(
+                    "Include all dates",
+                    value=False, key=f"include_all_v3_{review_context}_{day_revision}"
+                )
+                if include_all:
+                    st.session_state['finalized_days'] = {
+                        'context': review_context, 'decisions': decisions.copy(), 'choice': review_choice
+                    }
+                    st.rerun()
+                with st.expander("About red flags and exclusions", expanded=False):
+                    st.markdown("""
+    **How to use the indicators**
+
+    - Red Flags suggest days to review; they do not establish nonwear or automatically exclude days.
+    - Apply and note your study's exclusion/inclusion criteria.
+    - Missing minutes do not establish inactivity or nonwear.
+    - The Red Flag Summary file retains every date and any exclusion reasons. Excluded dates are removed from the other analysis exports and participant averages.
+
+    **How red flags are calculated**
+
+    Flags are calculated for each calendar day in your selected timezone, using recorded step values.
+
+    - **No recorded data:** No minutes have a step record.
+    - **Recorded steps total zero:** At least one minute has a record, but all recorded step counts are zero.
+    - **Recorded steps below 1,000:** The sum of recorded steps is less than 1,000.
+    - **Steps in only one daypart:** Minutes with one or more steps occur in exactly one of four periods: Overnight (midnight–5:59 a.m.), Morning (6 a.m.–11:59 a.m.), Afternoon (noon–5:59 p.m.), or Evening (6 p.m.–11:59 p.m.).
+    - **First-to-last positive minute span below 6 hours:** Fewer than 360 elapsed minutes separate the first and last minutes with steps. A day with only one step-positive minute has a span of zero; a day with none does not receive this flag.
+
+    **Number of red flags** counts how many of these five criteria are met. Criteria can overlap.
+
+    **Columns shown in the preview**
+
+    - **Exclude:** Check to remove that day from analysis outputs and participant averages.
+    - **Date:** The day being reviewed.
+    - **Exclusion reason (optional):** Your note explaining why you excluded the day.
+    - **Red flag reasons:** The indicators triggered for that day.
+    - **Total_Steps:** Total recorded steps that day.
+    - **Recorded_Minutes:** Minutes with data, including recorded zeros.
+    - **Missing_Minutes:** Minutes without data (NA).
+    - **Total_Step_Positive_Minutes:** Minutes with at least one step.
+    - **Number_of_Red_Flags:** Number of red flag criteria met that day.
+
+    **Additional columns in the downloaded Red Flags file**
+
+    - **Participant_ID** and **Day:** The participant label and day number within the selected date range.
+    - **Expected_Minutes:** Total minutes expected that day.
+    - **Overnight_Steps**, **Morning_Steps**, **Afternoon_Steps**, and **Evening_Steps:** Recorded steps in each daypart. Columns ending in **_Step_Positive_Minutes**, **_Recorded_Minutes**, and **_Missing_Minutes** give the corresponding minute counts for each daypart.
+    - **First_Last_Step_Positive_Time:** Times of the first and last minutes with steps.
+    - **Activity_Span_Minutes:** Minutes elapsed between those times.
+    - **Number_of_Active_Dayparts:** Dayparts with at least one step.
+    - **Longest_Zero_Step_Interval_Minutes:** Longest stretch of recorded zeros within the day.
+    - **Number_of_Zero_Step_Intervals_90_Minutes_or_Longer:** Number of stretches of recorded zeros lasting at least 90 minutes that overlap the day. Missing minutes break a stretch. Zero-step stretches are reported but do not trigger red flags.
+    - **No_Recorded_Data_Day**, **Recorded_Zero_Steps_Day**, **Red_Flag_Total_Steps_Under_1000**, **Red_Flag_Activity_In_Only_One_Daypart**, and **Red_Flag_Activity_Span_Under_6_Hours:** Separate columns showing whether each criterion is met.
+    - **Any_Red_Flag:** Whether the day meets at least one criterion.
+    - **Included_in_Participant_Summary** and **Exclusion_Reason:** Your inclusion decision and optional reason. The file retains all dates.
+    - **Analysis_Timezone** and **Daylight_Saving_Observed:** Your selected time settings.
+
+                    """)
+                review = red_flag_summary.copy()
+                flag_labels = {
+                    'No_Recorded_Data_Day': 'No recorded data',
+                    'Recorded_Zero_Steps_Day': 'Recorded steps total zero',
+                    'Red_Flag_Total_Steps_Under_1000': 'Recorded steps below 1,000',
+                    'Red_Flag_Activity_In_Only_One_Daypart': 'Steps in only one daypart',
+                    'Red_Flag_Activity_Span_Under_6_Hours': 'First-to-last positive minute span below 6 hours',
+                }
+                review['Flag_Reasons'] = review.apply(
+                    lambda row: '; '.join(label for column, label in flag_labels.items()
+                                          if pd.notna(row[column]) and bool(row[column])), axis=1
+                )
+                review.insert(0, 'Exclude_from_Analysis', False)
+                review.insert(1, 'Exclusion_Reason', '')
+                draft_days = st.session_state.get('day_selection_draft')
+                if draft_days is not None and draft_days['context'] == review_context:
+                    prior = draft_days['decisions'].set_index('Date')
+                    review['Exclude_from_Analysis'] = ~review['Date'].map(prior['Included_in_Participant_Summary']).fillna(True).astype(bool)
+                    review['Exclusion_Reason'] = review['Date'].map(prior['Exclusion_Reason']).fillna('')
+                leading_columns = [
+                    'Exclude_from_Analysis', 'Date', 'Exclusion_Reason', 'Flag_Reasons',
+                    'Total_Steps', 'Recorded_Minutes', 'Missing_Minutes',
+                    'Total_Step_Positive_Minutes', 'Number_of_Red_Flags',
+                ]
+                review = review[leading_columns]
+                with st.expander("Red Flag Summary", expanded=True):
+                    flagged = review.loc[review['Flag_Reasons'].ne('')]
+                    if flagged.empty:
+                        st.write("No dates meet the current red flag criteria.")
+                    for _, row in flagged.iterrows():
+                        st.markdown(f"**{row['Date']}** — {row['Flag_Reasons']}")
+                st.write("Check **Exclude** to remove a day from analysis outputs. The Red Flag Summary retains all dates.")
+                st.caption("To add an optional reason, double-click its cell, type your note, and press Enter.")
+                edited_review = st.data_editor(
+                    review, hide_index=True, use_container_width=True,
+                    key=f"day_review_v5_{review_context}_{day_revision}",
+                    disabled=True if include_all else [
+                        c for c in review.columns if c not in ('Exclude_from_Analysis', 'Exclusion_Reason')
+                    ],
+                    column_config={
+                        'Exclude_from_Analysis': st.column_config.CheckboxColumn('Exclude', width='small'),
+                        'Date': st.column_config.DateColumn('Date', format='YYYY-MM-DD', width='small'),
+                        'Flag_Reasons': st.column_config.TextColumn('Red flag reasons', width='large'),
+                        'Exclusion_Reason': st.column_config.TextColumn('Exclusion reason (optional)', width='large'),
+                    }
+                )
+                decisions = edited_review[['Date', 'Exclude_from_Analysis', 'Exclusion_Reason']].copy()
+                if include_all:
+                    decisions['Exclude_from_Analysis'] = False
+                decisions['Included_in_Participant_Summary'] = ~decisions['Exclude_from_Analysis'].fillna(False).astype(bool)
+                decisions['Exclusion_Reason'] = decisions['Exclusion_Reason'].fillna('').where(
+                    ~decisions['Included_in_Participant_Summary'], ''
+                )
+                decisions = decisions[['Date', 'Included_in_Participant_Summary', 'Exclusion_Reason']]
+                if st.button("Finalize days", key=f"finalize_days_{review_context}_{day_revision}", type="primary"):
+                    st.session_state['finalized_days'] = {
+                        'context': review_context, 'decisions': decisions.copy(), 'choice': review_choice
+                    }
+                    st.rerun()
+                st.stop()
+            else:
+                st.session_state['finalized_days'] = {
+                    'context': review_context, 'decisions': decisions.copy(), 'choice': review_choice
+                }
+                st.rerun()
         final_summary = final_summary.merge(decisions, on='Date', validate='one_to_one')
         red_flag_summary = red_flag_summary.merge(decisions, on='Date', validate='one_to_one')
         included_count = int(final_summary['Included_in_Participant_Summary'].sum())

@@ -82,31 +82,39 @@ Some locations have started or stopped observing daylight saving time. Choose th
 - Upload the participant's step files as described in Step 3.
     """)
 
-with st.expander("Step 3: Upload Files and Select the Analysis Dates", expanded=False):
+with st.expander("Step 3: Upload Files", expanded=False):
     st.markdown("""
-Upload files for one participant and one data source at a time. Avoid uploading
-overlapping exports of the same records.
+- Upload files for one participant and one data source at a time. Avoid uploading overlapping exports of the same records.
+- Use **E. Data Upload** on the left to upload Google Takeout steps CSV files or older Fitbit JSON files.
+    """)
 
-Upload JSON or CSV step files for the participant using **E. Data Upload** in the sidebar.
-After the files are read and converted to local time, the app will display the earliest
-and latest available dates. Select the intended analysis start and end dates, then confirm
-the range. All daily and detailed exports retain the full selected date range.
+with st.expander("Step 4: Select the Analysis Dates", expanded=False):
+    st.markdown("""
+- After files are read and timestamps are converted to your selected timezone, the tool displays the earliest and latest available dates. Select your analysis start and end dates, then confirm the range.
+- Choose whether to **review red flags and/or exclude individual days**:
+  - **Yes:** Check **Exclude** beside dates you want to omit from participant averages and optionally enter a reason. **Include all dates** overrides individual exclusions.
+  - **No:** All dates are included and the on-screen review is skipped. The Red Flag Summary is still provided as a download.
+- Flags prompt review; they do not establish nonwear or automatically exclude dates. Define and report your study's inclusion criteria.
+- Exclusions affect only **Participant Averages**. Daily and detailed exports retain the full date range. The Daily and Red Flag summaries record your inclusion decisions and reasons.
+    """)
 
-Choose whether to **review red flags and/or exclude individual days**. If Yes,
-review the table, check **Exclude** beside dates you want to omit from participant
-averages, and optionally enter an exclusion reason. **Include all dates** overrides
-individual exclusions. Flags prompt review; they do not establish nonwear or automatically
-exclude dates. Define and report your study's inclusion criteria.
+with st.expander("Step 5: Generate the Summary Files", expanded=False):
+    st.markdown("""
+- Click **Yes — prepare downloadable files** when you are ready.
+- Five download buttons appear, one per row, each with an expandable explanation of its calculations and contents.
+- If you change settings or exclusions, prepare the files again before downloading.
 
-If No, all dates are included and the on-screen review is skipped. A Red Flag Summary
-is still provided among the downloads. When ready, click **Yes — prepare downloadable files**.
-Five download buttons then appear one per row, each with expandable calculation and output details.
-Changing settings or exclusion decisions requires preparing the files again.
+**Available CSV files**
 
-Exclusions affect only **Participant Averages**. Daily and detailed exports retain every date;
-the Daily and Red Flag summaries record inclusion decisions and reasons. Averages give each
-included day equal weight and omit NA separately for each measure, reporting its contributing-day
-count. Recorded zeros count; missing values are never replaced with zero.
+- **Daily Summary:** Daily steps, intensity and cadence measures, coverage counts, and inclusion decisions.
+- **Minute-by-Minute Log:** Recorded steps and missing minutes throughout the selected date range.
+- **Hourly Steps Summary:** Recorded step totals and coverage counts for each hour.
+- **Red Flag Summary:** Daily and daypart measures, coverage indicators, flags, and exclusion reasons.
+- **Participant Averages:** Mean daily measures across included dates, with contributing-day counts.
+    """)
+    with st.expander("Calculation details and missing data", expanded=False):
+        st.markdown("""
+Participant averages give each included day equal weight and omit NA separately for each measure, reporting its contributing-day count. Recorded zeros count; missing values are never replaced with zero.
 
 Missing minutes are exported as **NA** (no record in the source file), for both
 JSON and CSV inputs. Explicit recorded zeros remain **0**. Missing records do
@@ -117,7 +125,11 @@ Zero-step intervals include only explicit zeros and are interrupted by NA.
 Step-positive minutes are recorded minutes with more than zero steps.
 Step-only records are not used to estimate wear time.
 
-MPA steps sum counts in minutes at or above the MPA threshold but below VPA.\n    VPA steps sum counts in minutes at or above VPA. MVPA steps are MPA plus VPA steps.\n    These are recorded-step totals, not estimates for missing minutes.\n\n    **Additional daily calculations:** Steps within a cadence band are the sum of
+MPA steps sum counts in minutes at or above the MPA threshold but below VPA.
+VPA steps sum counts in minutes at or above VPA. MVPA steps are MPA plus VPA steps.
+These are recorded-step totals, not estimates for missing minutes.
+
+**Additional daily calculations:** Steps within a cadence band are the sum of
 recorded step counts for minutes in that band. Peak 1-, 30-, and 60-minute
 cadence are the means of the highest 1, 30, or 60 recorded minute-level step
 counts, respectively (steps/min). These minutes need not be consecutive.
@@ -127,18 +139,9 @@ minutes are available. These additions were informed by
 [stepmetrics](https://github.com/jhmigueles/stepmetrics)
 (Migueles, *stepmetrics: Calculate Step and Cadence Metrics from Wearable Data*,
 [doi:10.5281/zenodo.7858094](https://doi.org/10.5281/zenodo.7858094)).
+        """)
 
-Five output files are provided:
-- 📄 **Participant Averages (CSV):** Mean daily measures across researcher-selected dates, with contributing-day counts and selection totals
-- 📄 **Daily Summary (CSV):** Total steps; minutes and steps in each cadence band; step-positive minutes; MPA, VPA, and total MVPA minutes and steps; and peak 1-, 30-, and 60-minute cadence per calendar day
-- 📄 **Minute-by-Minute Log (CSV):** A complete chronological record of the total steps recorded in each minute
-- 📊 **Hourly Steps Summary (CSV):** Total steps recorded in each hour of the day
-- 🚩 **Red Flag Summary (CSV):** Daily and daypart steps, step-positive minutes,
-  recorded and missing minutes, activity span, recorded zero-step diagnostics,
-  and exploratory data-coverage indicators
-    """)
-
-with st.expander("Step 4: Processing a New Participant", expanded=False):
+with st.expander("Step 6: Processing a New Participant", expanded=False):
     st.markdown("""
 To prevent data from one participant from carrying over to the next, 
 **refresh your browser before uploading files for a new participant.** 

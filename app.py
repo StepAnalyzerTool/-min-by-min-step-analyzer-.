@@ -270,7 +270,7 @@ st.sidebar.caption("Files use UTC. Select the participant’s time zone, or keep
 timezone = st.sidebar.selectbox(
     "Select participant timezone", timezone_options,
     format_func=lambda name: TIMEZONE_CHOICES[name],
-    help="Major time zones are listed first, followed by other locations. Type a city or country to search. Choose the location whose clock and daylight-saving rules match the collection location."
+    help="Type a city or country to search. Choose the location whose clock and daylight-saving rules match the collection location."
 )
 zone = pytz.timezone(timezone)
 # Subtract DST from UTC offset; this supports fractional and negative DST rules.

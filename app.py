@@ -78,7 +78,7 @@ Both data sets were downloaded from Fitbit in 2022 and are JSON files. Download 
     st.markdown("""
 **Step 2: Configure settings**
 
-- **A. Time zone:** For both participants, select **Eastern Time (America/New_York)** and select **Daylight saving time observed**.
+- **A. Time zone:** For both participants, select **American - Eastern** and leave **This location observes daylight saving time** checked.
 - **B. Participant ID:** Enter **Juliana** or **Evelyn**, depending on whose files you are analyzing.
 - **C. Intensity thresholds** and **D. Cadence-band thresholds:** Use the defaults.
 

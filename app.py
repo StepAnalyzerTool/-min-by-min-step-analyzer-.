@@ -90,9 +90,7 @@ with st.expander("Step 3: Upload Files", expanded=False):
     with st.expander("Google Takeout CSV files: contents and how they are used", expanded=False):
         st.markdown("""
 Google Takeout step CSV files contain timestamps, step counts, and a data-source label.
-In the exports examined for this tool, only minutes with positive step counts were present.
-An absent minute does not distinguish between wearing the Fitbit without taking steps and
-not wearing it.
+Exports only contain minutes with 1 or more step counts. No minutes with 0 step counts are listed. An absent minute does not distinguish between wearing the Fitbit without taking steps and not wearing it.
 
 The tool uses each timestamp and step count to assign records to the selected timezone,
 date, hour, cadence band, and activity-intensity category. If a file contains an explicit

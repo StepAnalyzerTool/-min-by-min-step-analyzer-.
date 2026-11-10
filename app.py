@@ -1203,11 +1203,10 @@ One row per participant, with a separate average for each daily measure.
 - **Days_In_Date_Range, Included_Days, and Excluded_Days:** Reports your date selections.
 - **Columns beginning with Mean_Daily_:** The daily average for the measure: total steps; step-positive minutes (minutes with at least one step); MPA, VPA, and MVPA minutes; weighted MVPA minutes (MPA + 2 × VPA); MPA, VPA, and MVPA steps; minutes and steps in each of the eight cadence bands; and peak 1-, 30-, and 60-minute cadence.  
   **Formula:** Mean = sum of included daily values ÷ contributing days.
-- **Columns ending in _Contributing_Days:** Included days with a value for that measure.
-- **Columns ending in _Included_Days_With_NA:** Included days without a value for that measure.  
-  **Formula:** Included days with NA = included days − contributing days.
+- **_Contributing_Days:** Number of days used to calculate each average.
+- **_Included_Days_With_NA:** Number of included days with missing values for that measure.
 
-**Notes:** Each mean is followed by its two day-count columns. Counts can differ across measures. Recorded zeros are included in averages; NA values and excluded days are omitted. For example, 4,000, 6,000, and NA average to 5,000 across two contributing days. If no day contributes, the mean is NA.
+**Notes:** Averages include recorded zeros but omit missing values and excluded days. If no values are available, the average is NA.
 """),
         ]
         for title, frame, suffix, explanation in downloads:

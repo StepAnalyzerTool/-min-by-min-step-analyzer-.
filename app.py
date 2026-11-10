@@ -16,9 +16,6 @@ st.markdown("**📋 How to Use This Tool**")
 
 with st.expander("Step 1: Export Your Fitbit Data", expanded=False):
     st.markdown("""
-Upload files for one participant and one data source at a time. Avoid uploading
-overlapping exports of the same records.
-
 **Google Takeout (as of November 2026)**
 
 1. Open [Google Takeout](https://takeout.google.com/) and sign in with the Google Account
@@ -56,6 +53,9 @@ automatically applies the correct daylight-saving offset for each date.
 
 with st.expander("Step 3: Upload Files and Select the Analysis Dates", expanded=False):
     st.markdown("""
+Upload files for one participant and one data source at a time. Avoid uploading
+overlapping exports of the same records.
+
 Upload JSON or CSV step files for the participant using **E. Data Upload** in the sidebar.
 After the files are read and converted to local time, the app will display the earliest
 and latest available dates. Select the intended analysis start and end dates, then confirm

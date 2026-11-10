@@ -176,7 +176,7 @@ with st.expander("📋 How to Use This Tool", expanded=False):
 
     **Available CSV files**
 
-    - **Daily Summary:** Daily steps, intensity and cadence measures, coverage counts, and inclusion decisions.
+    - **Daily Summary:** Daily steps, intensity and cadence measures, and inclusion decisions.
     - **Minute-by-Minute Log:** Recorded steps and missing minutes throughout the selected date range.
     - **Hourly Steps Summary:** Recorded step totals and coverage counts for each hour.
     - **Red Flag Summary:** Daily and daypart measures, coverage indicators, flags, and exclusion reasons.
@@ -1073,13 +1073,9 @@ elif uploaded_files:
         )
         coverage['Missing_Minutes'] = coverage['Expected_Minutes'] - coverage['Recorded_Minutes']
         summary.loc[coverage['Recorded_Minutes'].eq(0), :] = float('nan')
-        summary = summary.join(coverage)
 
         column_order = [
             'Total_Daily_Steps',
-            'Expected_Minutes',
-            'Recorded_Minutes',
-            'Missing_Minutes',
             'Total_Step_Positive_Minutes',
             'Total_MPA_Minutes',
             'Total_MPA_Steps',
@@ -1146,8 +1142,6 @@ One row per included day.
   **Formula:** Band minutes = count of minutes in the band. Band steps = sum of steps in those minutes.
 - **Peak cadence:** Averages the highest 1, 30, or 60 recorded minute counts. The minutes need not be consecutive.  
   **Formula:** Peak N-minute cadence = sum of the N highest minute counts ÷ N.
-- **Data coverage:** Reports expected, recorded, and missing minutes.  
-  **Formula:** Missing minutes = expected minutes − recorded minutes.
 
 Recorded zeros count; missing minutes (NA) do not enter activity calculations. A peak is NA if fewer than N recorded minutes are available. A day with no records has NA activity measures.
 """),

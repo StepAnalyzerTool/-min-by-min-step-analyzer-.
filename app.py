@@ -9,139 +9,133 @@ st.title("The FITS Tool")
 st.subheader("Fitbit Intensity, Timing, and Steps Tool")
 
 # --- INSTRUCTIONS SECTION ---
-with st.expander("📋 How to Use This Tool", expanded=True):
+st.markdown("""
+This application processes raw, minute-by-minute step data exported from Fitbit devices 
+and automatically calculates daily physical activity summaries based on step cadence bands.
+It also produces a minute-level step log, an hourly steps summary, and an exploratory
+red-flag summary designed to help researchers identify days that may warrant review for incomplete
+data coverage.
+""")
+st.subheader("📋 How to Use This Tool")
+
+with st.expander("Step 1: Export Your Fitbit Data", expanded=False):
     st.markdown("""
-    This application processes raw, minute-by-minute step data exported from Fitbit devices 
-    and automatically calculates daily physical activity summaries based on step cadence bands.
-    It also produces a minute-level step log, an hourly steps summary, and an exploratory
-    red-flag summary designed to help researchers identify days that may warrant review for incomplete
-    data coverage.
-    
-    ---
-    
-    **Step 1: Export Your Fitbit Data**
-    
-    Upload files for one participant and one data source at a time. Avoid uploading
-    overlapping exports of the same records.
-    
-    **Google Takeout (as of November 2026)**
-    
-    1. Open [Google Takeout](https://takeout.google.com/) and sign in with the Google Account
-       associated with the participant's Fitbit.
-    2. Deselect the other Google products and select **Google Health**.
-    3. Follow [Google's download instructions](https://support.google.com/accounts/answer/3024190)
-       to create and download the archive. Choose **ZIP** as the archive file type.
-    4. Unzip the downloaded archive and open **"Physical Activity_GoogleData"**.
-    5. Locate the **"steps_YYYY-MM-DD.csv"** files. These contain **timestamp**,
-       **steps**, and **data source** columns.
-    
-    **Legacy Fitbit Files**
-    
-    For files previously downloaded through Fitbit, use the **"steps-YYYY-MM-DD.json"**
-    files from the **"Physical Activity"** folder in the unzipped archive.
-    
-    ---
-    
-    **Step 2: Configure Settings**
-    
-    Before processing the step data, manually select the **timezone** that matches
-    the participant's location during data collection under **A. Timezone** in the sidebar.
+Upload files for one participant and one data source at a time. Avoid uploading
+overlapping exports of the same records.
 
-    Review the displayed timezone and check the confirmation box before continuing. Also use
-    the sidebar to:
-    - Enter a unique **Participant ID** under **B** (this label will appear in your output files)
-    - Adjust the **intensity thresholds** under **C** if your study uses different MPA and
-      VPA criteria (defaults: MPA ≥100 spm and VPA ≥130 spm)²
-    - Adjust the **cadence band thresholds** under **D** if your study uses custom step-rate criteria
-      (default values and names follow Tudor-Locke et al.¹)
+**Google Takeout (as of November 2026)**
 
-    Fitbit minute-level step timestamps are interpreted as UTC and converted to the confirmed
-    participant timezone before daily and hourly summaries are calculated. This conversion
-    automatically applies the correct daylight-saving offset for each date.
-    
-    ---
-    
-    **Step 3: Upload Files and Select the Analysis Dates**
-    
-    Upload JSON or CSV step files for the participant using **E. Data Upload** in the sidebar.
-    After the files are read and converted to local time, the app will display the earliest
-    and latest available dates. Select the intended analysis start and end dates, then confirm
-    the range. All daily and detailed exports retain the full selected date range.
+1. Open [Google Takeout](https://takeout.google.com/) and sign in with the Google Account
+   associated with the participant's Fitbit.
+2. Deselect the other Google products and select **Google Health**.
+3. Follow [Google's download instructions](https://support.google.com/accounts/answer/3024190)
+   to create and download the archive. Choose **ZIP** as the archive file type.
+4. Unzip the downloaded archive and open **"Physical Activity_GoogleData"**.
+5. Locate the **"steps_YYYY-MM-DD.csv"** files. These contain **timestamp**,
+   **steps**, and **data source** columns.
 
-    Choose whether to **review red flags and/or exclude individual days**. If Yes,
-    review the table, check **Exclude** beside dates you want to omit from participant
-    averages, and optionally enter an exclusion reason. **Include all dates** overrides
-    individual exclusions. Flags prompt review; they do not establish nonwear or automatically
-    exclude dates. Define and report your study's inclusion criteria.
+**Legacy Fitbit Files**
 
-    If No, all dates are included and the on-screen review is skipped. A Red Flag Summary
-    is still provided among the downloads. When ready, click **Yes — prepare downloadable files**.
-    Five download buttons then appear one per row, each with expandable calculation and output details.
-    Changing settings or exclusion decisions requires preparing the files again.
-
-    Exclusions affect only **Participant Averages**. Daily and detailed exports retain every date;
-    the Daily and Red Flag summaries record inclusion decisions and reasons. Averages give each
-    included day equal weight and omit NA separately for each measure, reporting its contributing-day
-    count. Recorded zeros count; missing values are never replaced with zero.
-
-    Missing minutes are exported as **NA** (no record in the source file), for both
-    JSON and CSV inputs. Explicit recorded zeros remain **0**. Missing records do
-    not establish inactivity or nonwear. Totals and cadence/intensity minutes use
-    recorded values only; recorded/missing minute counts show how much of each
-    period is represented. A period with no records has NA activity measures.
-    Zero-step intervals include only explicit zeros and are interrupted by NA.
-    Step-positive minutes are recorded minutes with more than zero steps.
-    Step-only records are not used to estimate wear time.
-
-    MPA steps sum counts in minutes at or above the MPA threshold but below VPA.\n    VPA steps sum counts in minutes at or above VPA. MVPA steps are MPA plus VPA steps.\n    These are recorded-step totals, not estimates for missing minutes.\n\n    **Additional daily calculations:** Steps within a cadence band are the sum of
-    recorded step counts for minutes in that band. Peak 1-, 30-, and 60-minute
-    cadence are the means of the highest 1, 30, or 60 recorded minute-level step
-    counts, respectively (steps/min). These minutes need not be consecutive.
-    Explicit recorded zeros are eligible; missing minutes are excluded and never
-    replaced with zero. A peak is NA when fewer than the required number of recorded
-    minutes are available. These additions were informed by
-    [stepmetrics](https://github.com/jhmigueles/stepmetrics)
-    (Migueles, *stepmetrics: Calculate Step and Cadence Metrics from Wearable Data*,
-    [doi:10.5281/zenodo.7858094](https://doi.org/10.5281/zenodo.7858094)).
-
-    Five output files are provided:
-    - 📄 **Participant Averages (CSV):** Mean daily measures across researcher-selected dates, with contributing-day counts and selection totals
-    - 📄 **Daily Summary (CSV):** Total steps; minutes and steps in each cadence band; step-positive minutes; MPA, VPA, and total MVPA minutes and steps; and peak 1-, 30-, and 60-minute cadence per calendar day
-    - 📄 **Minute-by-Minute Log (CSV):** A complete chronological record of the total steps recorded in each minute
-    - 📊 **Hourly Steps Summary (CSV):** Total steps recorded in each hour of the day
-    - 🚩 **Red Flag Summary (CSV):** Daily and daypart steps, step-positive minutes,
-      recorded and missing minutes, activity span, recorded zero-step diagnostics,
-      and exploratory data-coverage indicators
-    
-    ---
-    
-    **Step 4: Processing a New Participant**
-    
-    To prevent data from one participant from carrying over to the next, 
-    **refresh your browser before uploading files for a new participant.** 
-    This clears the session and fully resets all settings.
-    
-    ---
-    
-    ⚠️ *This tool does not store, save, or transmit any uploaded data. All files are 
-    processed temporarily and deleted automatically when the browser is refreshed or closed.*
-
-    ---
-
-    **References for Default Settings**
-
-    ¹ Tudor-Locke, C., Camhi, S. M., Leonardi, C., Johnson, W. D.,
-    Katzmarzyk, P. T., Earnest, C. P., & Church, T. S. (2011). Patterns of adult
-    stepping cadence in the 2005–2006 NHANES. *Preventive Medicine, 53*(3),
-    178–181. https://doi.org/10.1016/j.ypmed.2011.06.004
-
-    ² O'Brien, M. W., Kivell, M. J., Wojcik, W. R., D'Entremont, G.,
-    Kimmerly, D. S., & Fowles, J. R. (2018). Step rate thresholds associated
-    with moderate and vigorous physical activity in adults. *International
-    Journal of Environmental Research and Public Health, 15*(11), 2454.
-    https://doi.org/10.3390/ijerph15112454
+For files previously downloaded through Fitbit, use the **"steps-YYYY-MM-DD.json"**
+files from the **"Physical Activity"** folder in the unzipped archive.
     """)
 
+with st.expander("Step 2: Configure Settings", expanded=False):
+    st.markdown("""
+Before processing the step data, manually select the **timezone** that matches
+the participant's location during data collection under **A. Timezone** in the sidebar.
+
+Review the displayed timezone and check the confirmation box before continuing. Also use
+the sidebar to:
+- Enter a unique **Participant ID** under **B** (this label will appear in your output files)
+- Adjust the **intensity thresholds** under **C** if your study uses different MPA and
+  VPA criteria (defaults: MPA ≥100 spm and VPA ≥130 spm)²
+- Adjust the **cadence band thresholds** under **D** if your study uses custom step-rate criteria
+  (default values and names follow Tudor-Locke et al.¹)
+
+Fitbit minute-level step timestamps are interpreted as UTC and converted to the confirmed
+participant timezone before daily and hourly summaries are calculated. This conversion
+automatically applies the correct daylight-saving offset for each date.
+    """)
+
+with st.expander("Step 3: Upload Files and Select the Analysis Dates", expanded=False):
+    st.markdown("""
+Upload JSON or CSV step files for the participant using **E. Data Upload** in the sidebar.
+After the files are read and converted to local time, the app will display the earliest
+and latest available dates. Select the intended analysis start and end dates, then confirm
+the range. All daily and detailed exports retain the full selected date range.
+
+Choose whether to **review red flags and/or exclude individual days**. If Yes,
+review the table, check **Exclude** beside dates you want to omit from participant
+averages, and optionally enter an exclusion reason. **Include all dates** overrides
+individual exclusions. Flags prompt review; they do not establish nonwear or automatically
+exclude dates. Define and report your study's inclusion criteria.
+
+If No, all dates are included and the on-screen review is skipped. A Red Flag Summary
+is still provided among the downloads. When ready, click **Yes — prepare downloadable files**.
+Five download buttons then appear one per row, each with expandable calculation and output details.
+Changing settings or exclusion decisions requires preparing the files again.
+
+Exclusions affect only **Participant Averages**. Daily and detailed exports retain every date;
+the Daily and Red Flag summaries record inclusion decisions and reasons. Averages give each
+included day equal weight and omit NA separately for each measure, reporting its contributing-day
+count. Recorded zeros count; missing values are never replaced with zero.
+
+Missing minutes are exported as **NA** (no record in the source file), for both
+JSON and CSV inputs. Explicit recorded zeros remain **0**. Missing records do
+not establish inactivity or nonwear. Totals and cadence/intensity minutes use
+recorded values only; recorded/missing minute counts show how much of each
+period is represented. A period with no records has NA activity measures.
+Zero-step intervals include only explicit zeros and are interrupted by NA.
+Step-positive minutes are recorded minutes with more than zero steps.
+Step-only records are not used to estimate wear time.
+
+MPA steps sum counts in minutes at or above the MPA threshold but below VPA.\n    VPA steps sum counts in minutes at or above VPA. MVPA steps are MPA plus VPA steps.\n    These are recorded-step totals, not estimates for missing minutes.\n\n    **Additional daily calculations:** Steps within a cadence band are the sum of
+recorded step counts for minutes in that band. Peak 1-, 30-, and 60-minute
+cadence are the means of the highest 1, 30, or 60 recorded minute-level step
+counts, respectively (steps/min). These minutes need not be consecutive.
+Explicit recorded zeros are eligible; missing minutes are excluded and never
+replaced with zero. A peak is NA when fewer than the required number of recorded
+minutes are available. These additions were informed by
+[stepmetrics](https://github.com/jhmigueles/stepmetrics)
+(Migueles, *stepmetrics: Calculate Step and Cadence Metrics from Wearable Data*,
+[doi:10.5281/zenodo.7858094](https://doi.org/10.5281/zenodo.7858094)).
+
+Five output files are provided:
+- 📄 **Participant Averages (CSV):** Mean daily measures across researcher-selected dates, with contributing-day counts and selection totals
+- 📄 **Daily Summary (CSV):** Total steps; minutes and steps in each cadence band; step-positive minutes; MPA, VPA, and total MVPA minutes and steps; and peak 1-, 30-, and 60-minute cadence per calendar day
+- 📄 **Minute-by-Minute Log (CSV):** A complete chronological record of the total steps recorded in each minute
+- 📊 **Hourly Steps Summary (CSV):** Total steps recorded in each hour of the day
+- 🚩 **Red Flag Summary (CSV):** Daily and daypart steps, step-positive minutes,
+  recorded and missing minutes, activity span, recorded zero-step diagnostics,
+  and exploratory data-coverage indicators
+    """)
+
+with st.expander("Step 4: Processing a New Participant", expanded=False):
+    st.markdown("""
+To prevent data from one participant from carrying over to the next, 
+**refresh your browser before uploading files for a new participant.** 
+This clears the session and fully resets all settings.
+    """)
+
+st.markdown("""
+⚠️ *This tool does not store, save, or transmit any uploaded data. All files are 
+processed temporarily and deleted automatically when the browser is refreshed or closed.*
+""")
+
+with st.expander("References for Default Settings", expanded=False):
+    st.markdown("""
+¹ Tudor-Locke, C., Camhi, S. M., Leonardi, C., Johnson, W. D.,
+Katzmarzyk, P. T., Earnest, C. P., & Church, T. S. (2011). Patterns of adult
+stepping cadence in the 2005–2006 NHANES. *Preventive Medicine, 53*(3),
+178–181. https://doi.org/10.1016/j.ypmed.2011.06.004
+
+² O'Brien, M. W., Kivell, M. J., Wojcik, W. R., D'Entremont, G.,
+Kimmerly, D. S., & Fowles, J. R. (2018). Step rate thresholds associated
+with moderate and vigorous physical activity in adults. *International
+Journal of Environmental Research and Public Health, 15*(11), 2454.
+https://doi.org/10.3390/ijerph15112454
+    """)
 
 
 def peak_cadence(values, minutes):

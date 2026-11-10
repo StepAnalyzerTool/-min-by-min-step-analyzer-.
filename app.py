@@ -102,8 +102,6 @@ with st.expander("Step 3: Upload Files", expanded=False):
 - **Older Fitbit JSON:** These files contain recorded zeros as well as positive step counts.
   The tool preserves those zeros and labels any missing minutes as NA.
 
-The tool uses the timestamps and step counts to calculate summaries for the selected
-timezone and dates. Avoid uploading overlapping exports of the same records.
         """)
 
 with st.expander("Step 4: Select the Analysis Dates", expanded=False):

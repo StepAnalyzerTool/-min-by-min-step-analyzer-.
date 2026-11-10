@@ -34,16 +34,18 @@ files from the **"Physical Activity"** folder in the unzipped archive.
 
 with st.expander("Step 2: Configure Settings", expanded=False):
     st.markdown("""
-Before processing the step data, manually select the **timezone** that matches
-the participant's location during data collection under **A. Timezone** in the sidebar.
+Use the options on the **left side of the page**, labeled **A–E**:
 
-Review the displayed timezone and check the confirmation box before continuing. Also use
-the sidebar to:
-- Enter a unique **Participant ID** under **B** (this label will appear in your output files)
-- Adjust the **intensity thresholds** under **C** if your study uses different MPA and
-  VPA criteria (defaults: MPA ≥100 spm and VPA ≥130 spm)²
-- Adjust the **cadence band thresholds** under **D** if your study uses custom step-rate criteria
-  (default values and names follow Tudor-Locke et al.¹)
+- **A. Timezone:** Select the timezone that matches the participant's location during
+  data collection. Review the displayed timezone and check the confirmation box.
+- **B. Participant Information:** Enter a unique Participant ID. This label will appear
+  in the output files.
+- **C. Intensity Thresholds (spm):** Adjust the thresholds if your study uses different
+  moderate physical activity (MPA) or vigorous physical activity (VPA) criteria.
+  Defaults are MPA ≥100 steps/min and VPA ≥130 steps/min.²
+- **D. Cadence Band Thresholds (spm):** Adjust the thresholds if your study uses custom
+  cadence bands. Default band names and thresholds follow Tudor-Locke et al.¹
+- **E. Data Upload:** Upload the participant's step files as described in Step 3.
 
 Fitbit minute-level step timestamps are interpreted as UTC and converted to the confirmed
 participant timezone before daily and hourly summaries are calculated. This conversion

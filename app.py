@@ -1159,8 +1159,7 @@ with your inclusion decisions and exclusion reasons, even when you skip the on-s
 An equally weighted mean of each daily measure across your included dates, including activity
 and coverage measures. NA is omitted separately for each measure; recorded zeros count.
 Each row reports its contributing-day count, included days with NA, and total included/excluded
-days. If no included day has a value, the mean is NA. These averages describe recorded data
-and do not estimate activity during missing minutes.
+days. If no included day has a value, the mean is NA.
 """),
         ]
         for title, frame, suffix, explanation in downloads:

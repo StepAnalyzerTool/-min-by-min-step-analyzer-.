@@ -226,18 +226,51 @@ def read_step_file(file):
 
 # --- SIDEBAR ---
 st.sidebar.header("A. Time Zone")
-# UTC, followed by Americas locations (including US Hawaii), then other regions.
-american_zones = sorted(name for name in pytz.common_timezones if name.startswith('America/'))
-american_zones.append('Pacific/Honolulu')
-remaining_zones = sorted(name for name in pytz.common_timezones
-                         if name != 'UTC' and name not in american_zones
-                         and not name.startswith(('US/', 'Canada/')))
-timezone_options = ['UTC'] + american_zones + remaining_zones
+# Representative regions preserve their own historical timezone and DST rules.
+TIMEZONE_CHOICES = {
+    "UTC": "UTC — keep original timestamps",
+    "America/New_York": "Eastern — e.g., New York, USA",
+    "America/Chicago": "Central — e.g., Chicago, USA",
+    "America/Denver": "Mountain — e.g., Denver, USA",
+    "America/Los_Angeles": "Pacific — e.g., Los Angeles, USA",
+    "America/Anchorage": "Alaska — e.g., Anchorage, USA",
+    "Pacific/Honolulu": "Hawaii — USA",
+    "America/Phoenix": "Arizona — most of Arizona, USA",
+    "America/Halifax": "Atlantic — e.g., Nova Scotia, Canada",
+    "America/Sao_Paulo": "Brasília — e.g., São Paulo, Brazil",
+    "Europe/London": "UK time — United Kingdom",
+    "Europe/Paris": "Central European — e.g., France, Germany",
+    "Europe/Helsinki": "Eastern European — e.g., Finland",
+    "Europe/Moscow": "Moscow — western Russia",
+    "Africa/Johannesburg": "South Africa",
+    "Asia/Dubai": "Gulf — e.g., United Arab Emirates",
+    "Asia/Kolkata": "India",
+    "Asia/Bangkok": "Indochina — e.g., Thailand, Vietnam",
+    "Asia/Shanghai": "China",
+    "Asia/Tokyo": "Japan",
+    "Australia/Perth": "Australian Western — e.g., Perth",
+    "Australia/Adelaide": "Australian Central — e.g., Adelaide",
+    "Australia/Sydney": "Australian Eastern — e.g., Sydney",
+    "Pacific/Auckland": "New Zealand — main islands",
+}
+# Keep common choices first; retain remaining locations for city/country search.
+countries_by_zone = {}
+for country_code, zone_names in pytz.country_timezones.items():
+    for zone_name in zone_names:
+        countries_by_zone.setdefault(zone_name, []).append(str(pytz.country_names[country_code]))
+for zone_name in sorted(pytz.common_timezones):
+    if zone_name not in TIMEZONE_CHOICES and not zone_name.startswith(('US/', 'Canada/')):
+        country_label = ", ".join(countries_by_zone.get(zone_name, []))
+        location_label = zone_name.replace('_', ' ')
+        TIMEZONE_CHOICES[zone_name] = (
+            f"{location_label} — {country_label}" if country_label else location_label
+        )
+timezone_options = list(TIMEZONE_CHOICES)
 st.sidebar.caption("Files use UTC. Select the participant’s time zone, or keep UTC.")
-
 timezone = st.sidebar.selectbox(
     "Select participant timezone", timezone_options,
-    help="UTC is listed first, followed by Americas locations, then the rest of the world. You can type to search for a city."
+    format_func=lambda name: TIMEZONE_CHOICES[name],
+    help="Major time zones are listed first, followed by other locations. Type a city or country to search. Choose the location whose clock and daylight-saving rules match the collection location."
 )
 zone = pytz.timezone(timezone)
 # Subtract DST from UTC offset; this supports fractional and negative DST rules.

@@ -79,8 +79,19 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     Step-positive minutes are recorded minutes with more than zero steps.
     Step-only records are not used to estimate wear time.
 
+    **Additional daily calculations:** Steps within a cadence band are the sum of
+    recorded step counts for minutes in that band. Peak 1-, 30-, and 60-minute
+    cadence are the means of the highest 1, 30, or 60 recorded minute-level step
+    counts, respectively (steps/min). These minutes need not be consecutive.
+    Explicit recorded zeros are eligible; missing minutes are excluded and never
+    replaced with zero. A peak is NA when fewer than the required number of recorded
+    minutes are available. These additions were informed by
+    [stepmetrics](https://github.com/jhmigueles/stepmetrics)
+    (Migueles, *stepmetrics: Calculate Step and Cadence Metrics from Wearable Data*,
+    [doi:10.5281/zenodo.7858094](https://doi.org/10.5281/zenodo.7858094)).
+
     Four output files are provided:
-    - 📄 **Daily Summary (CSV):** Total steps; minutes in each of the cadence bands; and MPA, VPA, and total MVPA minutes per calendar day
+    - 📄 **Daily Summary (CSV):** Total steps; minutes and steps in each cadence band; MPA, VPA, and total MVPA minutes; and peak 1-, 30-, and 60-minute cadence per calendar day
     - 📄 **Minute-by-Minute Log (CSV):** A complete chronological record of the total steps recorded in each minute
     - 📊 **Hourly Steps Summary (CSV):** Total steps recorded in each hour of the day
     - 🚩 **Red Flag Summary (CSV):** Daily and daypart steps, step-positive minutes,
@@ -115,6 +126,15 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     Journal of Environmental Research and Public Health, 15*(11), 2454.
     https://doi.org/10.3390/ijerph15112454
     """)
+
+
+
+def peak_cadence(values, minutes):
+    """Mean of the top N recorded minutes; do not impute absent minutes."""
+    recorded = values.dropna()
+    if len(recorded) < minutes:
+        return float('nan')
+    return recorded.nlargest(minutes).mean()
 
 
 def read_step_file(file):
@@ -545,6 +565,22 @@ elif uploaded_files:
         summary['Total_VPA_Minutes'] = daily_intensity['Total_VPA_Minutes']
         summary['Total_MVPA_Minutes'] = summary['Total_MPA_Minutes'] + summary['Total_VPA_Minutes']
         summary['Total_Daily_Steps'] = part_df.groupby(['Participant_ID', 'Date'])['Steps'].sum(min_count=1)
+        # Step sums use the same cadence assignments as the minute counts.
+        band_steps = part_df.groupby(
+            ['Participant_ID', 'Date', 'Cadence_Band'], observed=False
+        )['Steps'].sum().unstack(fill_value=0).reindex(columns=labels, fill_value=0)
+        band_step_columns = [f'Steps: {label}' for label in labels]
+        band_steps.columns = band_step_columns
+        summary = summary.join(band_steps)
+        peak_columns = []
+        daily_steps = part_df.groupby(['Participant_ID', 'Date'])['Steps']
+        for minutes in (1, 30, 60):
+            column = f'Peak_{minutes}_Minute_Cadence_spm'
+            peak_columns.append(column)
+            summary[column] = daily_steps.agg(
+                lambda values, n=minutes: peak_cadence(values, n)
+            )
+
         coverage = part_df.groupby(['Participant_ID', 'Date'])['Steps'].agg(
             Expected_Minutes='size', Recorded_Minutes='count'
         )
@@ -560,7 +596,7 @@ elif uploaded_files:
             'Total_MPA_Minutes',
             'Total_VPA_Minutes',
             'Total_MVPA_Minutes',
-        ] + labels
+        ] + peak_columns + [column for pair in zip(labels, band_step_columns) for column in pair]
 
         final_summary = summary[column_order].reset_index()
         final_summary = final_summary.sort_values(by='Date')

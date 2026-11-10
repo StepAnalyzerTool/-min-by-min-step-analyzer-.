@@ -902,11 +902,32 @@ Flags are calculated for each calendar day in your selected timezone, using reco
 
 **Number of red flags** counts how many of these five criteria are met. Criteria can overlap.
 
-**Additional information in the Red Flag Summary**
+**Columns shown in the preview**
 
-- Daily and daypart step totals sum recorded counts. Step-positive minutes count records with one or more steps.
-- Recorded minutes have a source record, including explicit zeros. Missing minutes have no record and are labeled NA. Expected minutes reflect the selected timezone and daylight-saving settings.
-- Zero-step intervals consist of consecutive minutes with explicitly recorded zeros. Missing minutes interrupt these intervals. The file reports the longest interval within each day and the number of intervals lasting at least 90 minutes that overlap that day. Intervals may cross midnight. These measures do not add to the red flag count.
+- **Exclude:** Check to remove that day from analysis outputs and participant averages.
+- **Date:** The day being reviewed.
+- **Exclusion reason (optional):** Your note explaining why you excluded the day.
+- **Red flag reasons:** The indicators triggered for that day.
+- **Total_Steps:** Total recorded steps that day.
+- **Recorded_Minutes:** Minutes with data, including recorded zeros.
+- **Missing_Minutes:** Minutes without data (NA).
+- **Total_Step_Positive_Minutes:** Minutes with at least one step.
+- **Number_of_Red_Flags:** Number of red flag criteria met that day.
+
+**Additional columns in the downloaded file**
+
+- **Participant_ID** and **Day:** The participant label and day number within the selected date range.
+- **Expected_Minutes:** Total minutes expected that day.
+- **Overnight_Steps**, **Morning_Steps**, **Afternoon_Steps**, and **Evening_Steps:** Recorded steps in each daypart. Columns ending in **_Step_Positive_Minutes**, **_Recorded_Minutes**, and **_Missing_Minutes** give the corresponding minute counts for each daypart.
+- **First_Last_Step_Positive_Time:** Times of the first and last minutes with steps.
+- **Activity_Span_Minutes:** Minutes elapsed between those times.
+- **Number_of_Active_Dayparts:** Dayparts with at least one step.
+- **Longest_Zero_Step_Interval_Minutes:** Longest stretch of recorded zeros within the day.
+- **Number_of_Zero_Step_Intervals_90_Minutes_or_Longer:** Number of stretches of recorded zeros lasting at least 90 minutes that overlap the day. Missing minutes break a stretch. Zero-step stretches are reported but do not trigger red flags.
+- **No_Recorded_Data_Day**, **Recorded_Zero_Steps_Day**, **Red_Flag_Total_Steps_Under_1000**, **Red_Flag_Activity_In_Only_One_Daypart**, and **Red_Flag_Activity_Span_Under_6_Hours:** Separate columns showing whether each criterion is met.
+- **Any_Red_Flag:** Whether the day meets at least one criterion.
+- **Included_in_Participant_Summary** and **Exclusion_Reason:** Your inclusion decision and optional reason. The file retains all dates.
+- **Analysis_Timezone** and **Daylight_Saving_Observed:** Your selected time settings.
 
 **How to use the indicators**
 
@@ -1031,7 +1052,11 @@ every selected day has 24 clock hours. Excluded dates are removed from this file
 Daily and daypart steps, step-positive minutes, data coverage, activity span and explicit-zero
 intervals. Flags identify no recorded data, recorded zero-step days, fewer than 1,000 steps,
 steps in only one daypart, or an activity span below six hours. These indicators do not establish
-nonwear or automatically exclude dates. NA interrupts zero-step intervals. All dates remain,
+nonwear or automatically exclude dates. NA interrupts zero-step intervals. A zero-step interval
+may cross midnight: its full length determines whether it meets 90 minutes, and it is counted
+on each day it overlaps. The longest interval reports only its minutes within that day.
+Expected minutes follow your timezone and daylight-saving settings, so a day may have
+23 or 25 hours when clock changes apply. All dates remain,
 with your inclusion decisions and exclusion reasons, even when you skip the on-screen review.
 """),
             ("Participant Averages", participant_averages, "Participant_Averages", """

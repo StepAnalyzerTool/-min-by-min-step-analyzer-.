@@ -170,7 +170,7 @@ with st.expander("Step 4: Select the Analysis Dates", expanded=False):
 with st.expander("Step 5: Generate the Summary Files", expanded=False):
     st.markdown("""
 - Click **Yes — prepare downloadable files** when you are ready.
-- Five download buttons appear, one per row, labeled with the full filename. Open **About** beside a button for its calculations and contents.
+- Five download buttons appear, one per row, labeled with the full filename. Open the **About** dropdown beneath a button for its calculations and contents.
 - If you change settings or exclusions, prepare the files again before downloading.
 
 **Available CSV files**
@@ -1125,61 +1125,81 @@ elif uploaded_files:
         )
         downloads = [
             ("Daily Summary", final_summary, "Daily_Summaries", """
-Daily recorded steps; step-positive minutes; MPA, VPA and MVPA minutes and steps;
-minutes and steps in each cadence band; peak 1-, 30- and 60-minute cadence; and coverage counts.
-MPA is at least the selected MPA threshold and below VPA; VPA is at least the VPA threshold.
-MVPA combines MPA and VPA. Band steps sum the recorded counts within each band.
-Peak cadence averages the highest N recorded minute counts, which need not be consecutive.
-A peak is NA if fewer than N recorded minutes exist. Recorded zeros remain eligible.
-Only included dates appear in this file. Exclusion decisions and reasons are retained in the Red Flag Summary.
+**One row per included date**, with the participant ID, daily activity measures, and data-coverage counts. Dates and times use your confirmed timezone.
+
+- **Total_Daily_Steps:** Adds the steps recorded in every minute that day.
+- **Total_Step_Positive_Minutes:** Counts minutes containing at least one step.
+- **MPA, VPA, and MVPA minutes:** Moderate physical activity (MPA) minutes meet your MPA threshold but are below your vigorous physical activity (VPA) threshold. With the defaults, these are minutes with 100–129 steps. VPA minutes contain at least 130 steps. Each minute counts as MPA or VPA, never both. Moderate-to-vigorous physical activity (MVPA) minutes equal MPA minutes plus VPA minutes.
+- **MPA, VPA, and MVPA steps:** Adds the steps recorded during minutes in each intensity category. For example, a minute with 110 steps contributes one MPA minute and 110 MPA steps under the default settings. MVPA steps equal MPA steps plus VPA steps.
+- **Minutes and steps in each cadence band:** Cadence means steps per minute. Each recorded minute is assigned to the band containing its step count. The file reports both the number of minutes and the sum of steps in each band. For example, two minutes with 105 and 115 steps contribute 2 minutes and 220 steps to the default brisk-walking band (100–119 steps/min).
+- **Peak_1_Minute_Cadence_spm:** The highest recorded minute-level step count that day.
+- **Peak_30_Minute_Cadence_spm** and **Peak_60_Minute_Cadence_spm:** The average step count across the 30 or 60 highest recorded minutes. These minutes do not have to occur consecutively. Recorded zeros are eligible; missing minutes are omitted. A peak is NA when fewer than the required number of recorded minutes are available.
+- **Expected_Minutes**, **Recorded_Minutes**, and **Missing_Minutes:** Total minutes expected that day, minutes with source records (including zeros), and minutes without source records.
+
+Missing minutes are not assigned to cadence or intensity categories. Recorded zeros remain zero. A day with no records has NA activity measures. Excluded dates are removed; their decisions and reasons remain in the Red Flag Summary.
 """),
             ("Minute-by-Minute Log", final_min_by_min, "Min_by_Min", """
-Participant ID, local date, local time and steps for every minute in the selected range.
-Absent records are NA; explicitly recorded zeros stay zero. Days follow the selected timezone,
-with daylight-saving changes only when enabled. Excluded dates are removed from this file.
+**One row per minute on each included date**, presented in chronological order.
+
+- **Participant_ID:** The identifier you entered.
+- **Date** and **Time:** The calendar date and clock time in your confirmed timezone.
+- **Steps:** Steps recorded during that minute. For example, a value of 28 at 12:28 means that record contains 28 steps.
+- **NA** means no source record exists for that minute. An explicitly recorded zero remains **0**.
+
+The file provides the minute-level values used in the summaries. It does not label individual minutes by cadence band or intensity category. Excluded dates are removed.
+
+When daylight-saving adjustments apply, the spring clock-change day omits the nonexistent hour and the fall clock-change day includes the repeated hour twice. Repeated clock times appear in chronological order; the Time column does not show their different UTC offsets.
 """),
             ("Hourly Steps Summary", hourly_steps_summary, "Hourly_Steps_Summary", """
-Recorded step totals for each local clock hour, with recorded- and missing-minute counts.
-Hours with no records have NA totals. A repeated daylight-saving hour is combined under its
-clock-hour label when daylight-saving adjustments are enabled. With adjustments disabled,
-every selected day has 24 clock hours. Excluded dates are removed from this file.
+**One row per included date**, with the participant ID and date, 24 clock-hour step totals, and recorded- and missing-minute counts for each hour.
+
+Each hourly total adds the steps recorded within that clock hour. For example, the 9:00–10:00 a.m. total includes records from 9:00 through 9:59 a.m. Adding the available hourly step totals gives that date's total daily steps.
+
+- **Recorded minutes:** Minutes in that hour with a source record, including recorded zeros.
+- **Missing minutes:** Minutes in that hour without a source record.
+- **Zero versus NA:** An hour with recorded values that are all zero has a total of 0. An hour with no records has a total of NA.
+
+The file reports hourly step totals, not hourly MPA, VPA, or cadence-band minutes. Excluded dates are removed.
+
+The 24 clock-hour columns remain on daylight-saving transition dates. If adjustments apply, both occurrences of the repeated fall hour are combined in one hourly total; the skipped spring hour has NA steps and zero recorded and missing minutes because that hour did not occur. With adjustments disabled, each day has 24 hours.
 """),
             ("Red Flag Summary", red_flag_summary, "Red_Flag_Summary", """
-Daily and daypart steps, step-positive minutes, data coverage, activity span and explicit-zero
-intervals. Flags identify no recorded data, recorded zero-step days, fewer than 1,000 steps,
-steps in only one daypart, or an activity span below six hours. These indicators do not establish
-nonwear or automatically exclude dates. NA interrupts zero-step intervals. A zero-step interval
-may cross midnight: its full length determines whether it meets 90 minutes, and it is counted
-on each day it overlaps. The longest interval reports only its minutes within that day.
-Expected minutes follow your timezone and daylight-saving settings, so a day may have
-23 or 25 hours when clock changes apply. All dates remain,
-with your inclusion decisions and exclusion reasons, even when you skip the on-screen review.
+**One row for every date in the selected range**, including excluded dates. The file records your inclusion decisions and optional exclusion reasons.
+
+- **Daily and daypart steps:** Adds recorded steps across the day and within Overnight (midnight–5:59 a.m.), Morning (6 a.m.–11:59 a.m.), Afternoon (noon–5:59 p.m.), and Evening (6 p.m.–11:59 p.m.).
+- **Step-positive minutes:** Counts minutes containing at least one step, for the day and each daypart.
+- **Data coverage:** Reports expected, recorded, and missing minutes. Recorded minutes include explicit zeros; missing minutes have no source record.
+- **Activity span:** Reports the first and last times with steps and the elapsed minutes between them. One step-positive minute gives a span of zero; no step-positive minutes gives NA.
+- **Zero-step periods:** Reports the longest stretch of recorded zeros within each day and the number of stretches lasting at least 90 minutes that overlap it. Missing minutes and positive step counts interrupt a stretch. A stretch can cross midnight; its full length determines whether it meets 90 minutes, and it is counted on each day it overlaps. These measures do not add to the red flag count.
+- **Red flags:** Separate indicators identify no recorded data, recorded steps totaling zero, fewer than 1,000 recorded steps, steps in exactly one daypart, and an activity span below 360 minutes. **Number_of_Red_Flags** counts the criteria met; **Any_Red_Flag** indicates whether at least one is met.
+
+Flags prompt review and do not automatically exclude days. **Included_in_Participant_Summary** records your inclusion decision, and **Exclusion_Reason** contains your note. This file is provided even if you skip the on-screen review.
+
+Expected minutes follow your timezone and daylight-saving settings, so a day may have 23 or 25 hours when clock changes apply.
 """),
             ("Participant Averages", participant_averages, "Participant_Averages", """
-An equally weighted mean of each daily measure across your included dates, including activity
-and coverage measures. NA is omitted separately for each measure; recorded zeros count.
-Each row reports its contributing-day count, included days with NA, and total included/excluded
-days. If no included day has a value, the mean is NA.
+**One row per daily measure**, summarizing the dates you included in the analysis.
+
+For each measure, the tool adds the available daily values and divides by the number of included days with a value. Each contributing day has equal weight. For example, daily steps of 4,000, 6,000, and NA give an average of 5,000 steps across two contributing days. A recorded daily total of zero would count as a value.
+
+- **Measure:** The daily measure being averaged, including step totals, cadence and intensity minutes and steps, peak cadence, and coverage counts.
+- **Mean_Per_Day:** The average daily value for that measure.
+- **Contributing_Days:** Included days with a value for that measure.
+- **Included_Days_With_NA:** Included days without a value for that measure.
+- **Days_In_Date_Range**, **Included_Days**, and **Excluded_Days:** The total dates selected and the numbers included and excluded.
+
+The file also records the participant ID, timezone, and analysis start and end dates. Excluded days do not contribute to any average. NA is omitted separately for each measure, so contributing-day counts can differ. If no included day has a value, the mean is NA.
 """),
         ]
         for title, frame, suffix, explanation in downloads:
             download_filename = f"{manual_participant_id}_{suffix}.csv"
-            download_col, about_col = st.columns([3, 2])
-            with download_col:
-                st.download_button(
-                    f"📥 Download {download_filename}",
-                    data=frame.to_csv(index=False, na_rep="NA").encode('utf-8-sig'),
-                    file_name=download_filename, mime="text/csv",
-                    use_container_width=True
-                )
-            with about_col:
-                about_key = f"about_download_{suffix}"
-                about_open = st.session_state.get(about_key, False)
-                if st.button("About ▴" if about_open else "About ▾", key=f"toggle_{about_key}"):
-                    st.session_state[about_key] = not about_open
-                    st.rerun()
-            if st.session_state.get(about_key, False):
-                st.markdown(f"**{title}**")
+            st.download_button(
+                f"📥 Download {download_filename}",
+                data=frame.to_csv(index=False, na_rep="NA").encode('utf-8-sig'),
+                file_name=download_filename, mime="text/csv",
+                use_container_width=True
+            )
+            with st.expander(f"About {title}", expanded=False):
                 st.markdown(explanation)
 
     else:

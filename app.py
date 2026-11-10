@@ -34,10 +34,14 @@ files from the **"Physical Activity"** folder in the unzipped archive.
 
 with st.expander("Step 2: Configure Settings", expanded=False):
     st.markdown("""
-Use the options on the **left side of the page**:
+The Fitbit step files use **Coordinated Universal Time (UTC)**. Use the options on the
+**left side of the page** to choose how timestamps are grouped into local days and hours:
 
-- **A. Timezone:** Select the timezone that matches the participant's location during
-  data collection. Review the displayed timezone and check the confirmation box.
+- **A. Timezone:** Select the timezone for the participant's location during data collection.
+  Indicate whether that location observes daylight saving time. If it does, the tool applies
+  the appropriate offset for each date automatically; do not change this choice just because
+  a particular date falls in winter. If it does not, the tool uses standard time throughout.
+  Choose UTC to keep the original UTC dates and times. Review and confirm the displayed settings.
 - **B. Participant Information:** Enter a unique Participant ID. This label will appear
   in the output files.
 - **C. Intensity Thresholds (spm):** Adjust the thresholds if your study uses different
@@ -48,8 +52,9 @@ Use the options on the **left side of the page**:
 - **E. Data Upload:** Upload the participant's step files as described in Step 3.
 
 Fitbit minute-level step timestamps are interpreted as UTC and converted to the confirmed
-participant timezone before daily and hourly summaries are calculated. This conversion
-automatically applies the correct daylight-saving offset for each date.
+participant timezone before daily and hourly summaries are calculated. Daylight-saving
+adjustments follow your selected setting. The dates available for selection may change when
+you change these settings.
     """)
 
 with st.expander("Step 3: Upload Files and Select the Analysis Dates", expanded=False):
@@ -203,23 +208,42 @@ def read_step_file(file):
 
 # --- SIDEBAR ---
 st.sidebar.header("A. Timezone")
-timezone_options = [
-    "America/New_York",
-    "America/Chicago",
-    "America/Denver",
-    "America/Los_Angeles",
-    "UTC"
-]
-default_timezone = "America/New_York"
+# Standard offsets for the supported timezone choices (minutes east of UTC).
+TIMEZONE_SETTINGS = {
+    "America/New_York": ("Eastern — America/New_York", -300, True),
+    "America/Chicago": ("Central — America/Chicago", -360, True),
+    "America/Denver": ("Mountain — America/Denver", -420, True),
+    "America/Los_Angeles": ("Pacific — America/Los_Angeles", -480, True),
+    "America/Phoenix": ("Arizona — America/Phoenix", -420, False),
+    "Pacific/Honolulu": ("Hawaii — Pacific/Honolulu", -600, False),
+    "UTC": ("UTC — no local-time conversion", 0, False),
+}
+st.sidebar.caption("Source step timestamps use UTC. Choose the participant's local timezone, or keep UTC.")
 timezone = st.sidebar.selectbox(
-    "Select participant timezone",
-    timezone_options,
-    index=timezone_options.index(default_timezone),
-    help="This should match the participant's location during data collection."
+    "Select participant timezone", list(TIMEZONE_SETTINGS),
+    format_func=lambda name: TIMEZONE_SETTINGS[name][0],
+    help="Choose the location during data collection. For locations without seasonal clock changes, turn off daylight saving below."
 )
+_, standard_offset, seasonal_zone = TIMEZONE_SETTINGS[timezone]
+observes_dst = st.sidebar.checkbox(
+    "This location observes daylight saving time",
+    value=seasonal_zone, disabled=not seasonal_zone, key=f"observes_dst_{timezone}",
+    help="Select whether the location observes seasonal clock changes, not whether daylight saving is active today. Date-specific changes are automatic when selected."
+)
+if observes_dst:
+    analysis_timezone = pytz.timezone(timezone)
+    timezone_description = f"{timezone}; date-specific daylight-saving adjustments enabled"
+else:
+    analysis_timezone = pytz.FixedOffset(standard_offset)
+    offset_sign = '+' if standard_offset >= 0 else '-'
+    offset_hours, offset_minutes = divmod(abs(standard_offset), 60)
+    timezone_description = (
+        f"{timezone}; fixed UTC{offset_sign}{offset_hours:02d}:{offset_minutes:02d}; no daylight-saving adjustments"
+    )
+st.sidebar.caption(timezone_description)
 timezone_confirmed = st.sidebar.checkbox(
-    f"I confirm the participant timezone is {timezone}",
-    value=False
+    "I confirm the timezone and daylight-saving settings above",
+    value=False, key=f"timezone_confirmed_{timezone}_{observes_dst}"
 )
 
 st.sidebar.header("B. Participant Information")
@@ -456,7 +480,7 @@ elif uploaded_files:
     if all_raw_dfs:
         df = pd.concat(all_raw_dfs)
         df = df.drop_duplicates(subset=['dateTime'])
-        df = df.set_index('dateTime').tz_convert(timezone)
+        df = df.set_index('dateTime').tz_convert(analysis_timezone)
         df = df[df.index.notna()]
 
         earliest_available_date = df.index.min().date()
@@ -521,7 +545,7 @@ elif uploaded_files:
             f"{analysis_end_date:%B %d, %Y}..."
         )
 
-        unique_dates = pd.date_range(analysis_start_date, analysis_end_date, freq="D", tz=timezone)
+        unique_dates = pd.date_range(analysis_start_date, analysis_end_date, freq="D", tz=analysis_timezone)
         participant_full_timeseries = []
 
         # 2. RECONSTRUCT CONTINUOUS TIMELINES PER DAY
@@ -533,7 +557,7 @@ elif uploaded_files:
                 start=date,
                 end=date + pd.DateOffset(days=1) - pd.Timedelta(minutes=1),
                 freq='min',
-                tz=timezone
+                tz=analysis_timezone
             )
 
             day_data = df[df.index.normalize() == date]
@@ -646,7 +670,7 @@ elif uploaded_files:
                 'Time',
                 'Steps'
             ]
-        ]
+        ].copy()
 
         # 5. BUILD HOURLY AND RED-FLAG CSV OUTPUTS
         hourly_steps_summary = build_hourly_steps_summary(part_df)
@@ -656,7 +680,7 @@ elif uploaded_files:
         # Reset decisions for different input records, participant, timezone, dates or thresholds.
         review_context = hashlib.sha256(
             pd.util.hash_pandas_object(df[['value']], index=True).values.tobytes()
-            + repr((manual_participant_id, timezone, analysis_start_date, analysis_end_date,
+            + repr((manual_participant_id, timezone, observes_dst, analysis_start_date, analysis_end_date,
                     mpa, vpa, bins)).encode('utf-8')
         ).hexdigest()
         review_choice = st.radio(
@@ -755,12 +779,15 @@ elif uploaded_files:
             st.stop()
 
         participant_averages = build_participant_averages(
-            final_summary, column_order, manual_participant_id, timezone,
+            final_summary, column_order, manual_participant_id, timezone_description,
             analysis_start_date, analysis_end_date
         )
+        for output_frame in (final_summary, final_min_by_min, hourly_steps_summary, red_flag_summary):
+            output_frame['Analysis_Timezone'] = timezone_description
+            output_frame['Daylight_Saving_Observed'] = observes_dst
         st.success("Your five analysis files are ready.")
         st.caption(
-            f"Dates are based on {timezone}. Daily and detailed outputs retain the full selected range; "
+            f"Dates are based on {timezone_description}. Daily and detailed outputs retain the full selected range; "
             "only participant averages use your day exclusions. Missing values are exported as NA."
         )
         downloads = [
@@ -776,12 +803,13 @@ All dates remain, with inclusion decisions and exclusion reasons.
             ("Minute-by-Minute Log", final_min_by_min, "Min_by_Min", """
 Participant ID, local date, local time and steps for every minute in the selected range.
 Absent records are NA; explicitly recorded zeros stay zero. Days follow the selected timezone,
-including daylight-saving changes. Excluded dates remain in this file.
+with daylight-saving changes only when enabled. Excluded dates remain in this file.
 """),
             ("Hourly Steps Summary", hourly_steps_summary, "Hourly_Steps_Summary", """
 Recorded step totals for each local clock hour, with recorded- and missing-minute counts.
 Hours with no records have NA totals. A repeated daylight-saving hour is combined under its
-clock-hour label. Excluded dates remain in this file.
+clock-hour label when daylight-saving adjustments are enabled. With adjustments disabled,
+every selected day has 24 clock hours. Excluded dates remain in this file.
 """),
             ("Red Flag Summary", red_flag_summary, "Red_Flag_Summary", """
 Daily and daypart steps, step-positive minutes, data coverage, activity span and explicit-zero
@@ -810,5 +838,6 @@ and do not estimate activity during missing minutes.
 
     else:
         st.error("❌ No valid Fitbit data found in the uploaded files. Please check your files and try again.")
+
 
 

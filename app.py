@@ -285,25 +285,23 @@ def build_participant_summary(daily, metric_columns, participant_id, timezone, s
 
 
 def build_hourly_participant_summary(hourly, participant_id, timezone, start, end, days_in_range, included_days):
-    """One row per clock hour; sample SD and mean across included days with data."""
-    rows = []
+    """One participant row with mean, sample SD and day counts for each hour."""
+    row = {
+        'Participant_ID': participant_id,
+        'Timezone': timezone,
+        'Analysis_Start_Date': start,
+        'Analysis_End_Date': end,
+        'Days_In_Date_Range': days_in_range,
+        'Included_Days': included_days,
+        'Excluded_Days': days_in_range - included_days,
+    }
     for hour_label in hour_labels:
         values = hourly[hour_label]
-        rows.append({
-            'Participant_ID': participant_id,
-            'Timezone': timezone,
-            'Analysis_Start_Date': start,
-            'Analysis_End_Date': end,
-            'Days_In_Date_Range': days_in_range,
-            'Included_Days': included_days,
-            'Excluded_Days': days_in_range - included_days,
-            'Hour': hour_label,
-            'Mean_Hourly_Steps': values.mean(),
-            'SD_Hourly_Steps': values.std(ddof=1),
-            'Contributing_Days': int(values.notna().sum()),
-            'Included_Days_With_NA': int(values.isna().sum()),
-        })
-    return pd.DataFrame(rows)
+        row[f'Mean_Steps_{hour_label}'] = values.mean()
+        row[f'SD_Steps_{hour_label}'] = values.std(ddof=1)
+        row[f'Contributing_Days_{hour_label}'] = int(values.notna().sum())
+        row[f'Included_Days_With_NA_{hour_label}'] = int(values.isna().sum())
+    return pd.DataFrame([row])
 
 
 def upload_error_details(error):
@@ -1225,19 +1223,18 @@ One row per included day, with a step total for each clock hour.
 **Notes:** Recorded zeros remain zero. An hour with no records has NA steps. When daylight-saving adjustments apply, the repeated fall hour is combined into one total; the skipped spring hour has NA steps and zero expected minutes.
 """),
             ("Hourly Participant Summary", hourly_participant_summary, "Hourly_Participant_Summary", """
-One row per clock hour, summarizing included days.
+One row per participant, with separate columns for each clock hour.
 
 - **Participant_ID, Timezone, Analysis_Start_Date, and Analysis_End_Date:** Identifies the participant and analysis settings.
 - **Days_In_Date_Range, Included_Days, and Excluded_Days:** Reports your date selections.
-- **Hour:** The clock hour being summarized.
-- **Mean_Hourly_Steps:** Average steps during that hour across days with data.  
+- **Columns beginning with Mean_Steps_:** Average steps during that hour across days with data.  
   **Formula:** Mean hourly steps = sum of hourly step totals ÷ contributing days.
-- **SD_Hourly_Steps:** How much the hourly totals vary across days.  
+- **Columns beginning with SD_Steps_:** How much the hourly totals vary across days.  
   **Formula:** Sample SD = square root of [sum of (hourly total − mean)² ÷ (contributing days − 1)].
-- **Contributing_Days:** Included days with data for that hour.
-- **Included_Days_With_NA:** Included days without data for that hour.
+- **Columns beginning with Contributing_Days_:** Included days with data for that hour.
+- **Columns beginning with Included_Days_With_NA_:** Included days without data for that hour.
 
-**Notes:** Recorded zeros are included; NA values and excluded days are omitted. A mean is NA when no values are available; SD is NA with fewer than two values. Daylight-saving hours follow the Hourly Steps Summary: repeated hours are combined, and skipped hours are omitted from the average.
+**Notes:** Each column name includes its clock hour. Each hour's mean, SD, and day counts are grouped together. Recorded zeros are included; NA values and excluded days are omitted. A mean is NA when no values are available; SD is NA with fewer than two values. Daylight-saving hours follow the Hourly Steps Summary: repeated hours are combined, and skipped hours are omitted from the average.
 """),
             ("Red Flag Summary", red_flag_summary, "Red_Flag_Summary", """
 One row per selected day, including excluded days and their reasons.

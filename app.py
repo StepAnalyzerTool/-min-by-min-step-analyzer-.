@@ -176,7 +176,7 @@ with st.expander("📋 How to Use This Tool", expanded=False):
 
     **Available CSV files**
 
-    - **Daily Summary:** Daily steps, intensity and cadence measures, and inclusion decisions.
+    - **Daily Summary:** Daily steps, intensity, and cadence measures for included days.
     - **Minute-by-Minute Log:** Recorded steps and missing minutes throughout the selected date range.
     - **Hourly Steps Summary:** Recorded step totals and coverage counts for each hour.
     - **Red Flag Summary:** Daily and daypart measures, coverage indicators, flags, and exclusion reasons.
@@ -951,8 +951,10 @@ elif uploaded_files:
     - **First_Last_Step_Positive_Time:** Times of the first and last minutes with steps.
     - **Activity_Span_Minutes:** Minutes elapsed between those times.
     - **Number_of_Active_Dayparts:** Dayparts with at least one step.
-    - **Longest_Zero_Step_Interval_Minutes:** Longest stretch of recorded zeros within the day.
-    - **Number_of_Zero_Step_Intervals_90_Minutes_or_Longer:** Number of stretches of recorded zeros lasting at least 90 minutes that overlap the day. Missing minutes break a stretch. Zero-step stretches are reported but do not trigger red flags.
+    - **Longest_Zero_Step_Interval_Minutes:** Longest segment of consecutive recorded zero-step minutes within that calendar day. A stretch crossing midnight is reported as its within-day segment on each day.
+    - **Number_of_Zero_Step_Intervals_90_Minutes_or_Longer:** Number of full stretches of recorded zeros lasting at least 90 minutes that overlap the day. Missing minutes break a stretch; a stretch crossing midnight can be counted on both days.
+
+    Zero-step interval measures are descriptive and do not create an additional red flag. A day with a recorded total of zero steps meets the separate **Recorded steps total zero** criterion.
     - **No_Recorded_Data_Day**, **Recorded_Zero_Steps_Day**, **Red_Flag_Total_Steps_Under_1000**, **Red_Flag_Activity_In_Only_One_Daypart**, and **Red_Flag_Activity_Span_Under_6_Hours:** Separate columns showing whether each criterion is met.
     - **Any_Red_Flag:** Whether the day meets at least one criterion.
     - **Included_in_Participant_Summary** and **Exclusion_Reason:** Your inclusion decision and optional reason. The file retains all dates.

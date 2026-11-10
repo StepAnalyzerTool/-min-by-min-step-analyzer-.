@@ -84,9 +84,44 @@ Some locations have started or stopped observing daylight saving time. Choose th
 
 with st.expander("Step 3: Upload Files", expanded=False):
     st.markdown("""
-- Upload files for one participant and one data source at a time. Avoid uploading overlapping exports of the same records.
 - Use **E. Data Upload** on the left to upload Google Takeout steps CSV files or older Fitbit JSON files.
+- Upload files for one participant and one data source at a time.
     """)
+    with st.expander("Google Takeout CSV files: contents and how they are used", expanded=False):
+        st.markdown("""
+Google Takeout step CSV files contain timestamps, step counts, and a data-source label.
+In the exports examined for this tool, only minutes with positive step counts were present.
+An absent minute does not distinguish between wearing the Fitbit without taking steps and
+not wearing it.
+
+The tool uses each timestamp and step count to assign records to the selected timezone,
+date, hour, cadence band, and activity-intensity category. If a file contains an explicit
+zero-step record, the tool preserves that zero.
+
+Minutes with no source record are labeled **NA**. They are excluded from activity calculations,
+including step totals, intensity and cadence measures, and peak cadence. They are counted
+in missing-minute coverage totals. A day with no records has NA activity measures and does
+not contribute to averages of those measures.
+
+Avoid uploading overlapping exports of the same records.
+        """)
+    with st.expander("Older Fitbit JSON files: contents and how they are used", expanded=False):
+        st.markdown("""
+Older Fitbit step JSON files contain timestamps and step counts, including explicit records
+of **0 steps**. The tool preserves these recorded zeros. A recorded zero indicates that
+no steps were recorded for that minute; it does not by itself establish that the Fitbit was worn.
+
+The tool uses each timestamp and step count to assign records to the selected timezone,
+date, hour, cadence band, and activity-intensity category. Recorded zeros count toward the
+zero-step cadence band and are eligible for peak-cadence calculations.
+
+Minutes with no source record are labeled **NA**, rather than zero. They are excluded from
+activity calculations, including step totals, intensity and cadence measures, and peak cadence.
+They are counted in missing-minute coverage totals. A day with no records has NA activity
+measures and does not contribute to averages of those measures.
+
+Avoid uploading overlapping exports of the same records.
+        """)
 
 with st.expander("Step 4: Select the Analysis Dates", expanded=False):
     st.markdown("""

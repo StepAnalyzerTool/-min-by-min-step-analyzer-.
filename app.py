@@ -331,7 +331,7 @@ b7 = st.sidebar.number_input("Faster locomotion/ambulation lower limit", value=1
 
 st.sidebar.markdown("#### E. Data Upload")
 uploaded_files = st.sidebar.file_uploader(
-    "Upload Fitbit JSON or Google Takeout steps CSV files",
+    "Upload Google Takeout steps CSV files or Fitbit JSON",
     type=['json', 'csv'],
     accept_multiple_files=True
 )

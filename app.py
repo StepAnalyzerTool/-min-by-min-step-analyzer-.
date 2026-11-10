@@ -109,7 +109,7 @@ with st.expander("Step 3: Upload Files", expanded=False):
 
 with st.expander("Step 4: Select the Analysis Dates", expanded=False):
     st.markdown("""
-- After files are read and timestamps are converted to your selected timezone, the tool displays the earliest and latest available dates. Select your analysis start and end dates, then confirm the range. The controls collapse into a checked **Confirmed dates** box; uncheck it to change the dates.
+- After files are read and timestamps are converted to your selected timezone, the tool displays the earliest and latest available dates. Select your analysis start and end dates, then confirm the range. The controls collapse into a green **Confirmed dates** box. Select **Change dates** to reopen them.
 - Choose whether to **review red flags and/or exclude individual days**:
   - **Yes:** Check **Exclude** beside dates you want to omit from participant averages and optionally enter a reason. **Include all dates** overrides individual exclusions.
   - **No:** All dates are included and the on-screen review is skipped. The Red Flag Summary is still provided as a download.
@@ -662,12 +662,10 @@ elif uploaded_files:
         if confirmed_dates:
             analysis_start_date = confirmed_dates['start']
             analysis_end_date = confirmed_dates['end']
-            keep_dates = st.checkbox(
-                f"Confirmed dates: {analysis_start_date:%B %d, %Y} through {analysis_end_date:%B %d, %Y}",
-                value=True, key=f"confirmed_dates_{date_context}_{date_revision}",
-                help="Uncheck to change the analysis start and end dates."
+            st.success(
+                f"✅ Confirmed dates: {analysis_start_date:%B %d, %Y} through {analysis_end_date:%B %d, %Y}"
             )
-            if not keep_dates:
+            if st.button("Change dates", key=f"change_dates_{date_context}_{date_revision}"):
                 st.session_state['date_selection_draft'] = confirmed_dates
                 st.session_state.pop('confirmed_analysis_dates', None)
                 st.session_state.pop('prepared_output_context', None)

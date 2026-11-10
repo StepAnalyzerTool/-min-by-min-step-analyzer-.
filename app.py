@@ -1255,7 +1255,7 @@ One row per selected day, including excluded days and their reasons.
 - **Included_in_Participant_Summary:** Records whether you included the day.
 - **Exclusion_Reason:** Records your optional reason for excluding the day.
 
-**Notes:** Flags prompt review; they do not automatically exclude days. Zero-step periods do not add to the flag count. Missing minutes break a zero-step stretch. A stretch crossing midnight can count on both days.
+**Notes:** Flags prompt review; they do not automatically exclude days. Missing minutes break a zero-step stretch. A stretch crossing midnight can count on both days.
 """),
             ("Participant Summary", participant_summary, "Participant_Summary", """
 One row per participant, summarizing the included days.

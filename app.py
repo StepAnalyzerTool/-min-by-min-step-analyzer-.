@@ -43,7 +43,8 @@ Use the options on the **left side of the page**:
 - The Fitbit step files use **Coordinated Universal Time (UTC)**.
 - Select the timezone for the participant's location during data collection and indicate
   whether that location observes daylight saving time. Or choose UTC to keep the original
-  UTC dates and times. Review and confirm the displayed settings.
+  UTC dates and times.
+- Review and confirm the displayed settings.
     """)
     with st.expander("How timezone selections affect data analysis", expanded=False):
         st.markdown("""
@@ -61,14 +62,24 @@ Timezone conversion can move records to a different date or hour, changing daily
 Some locations have started or stopped observing daylight saving time. Choose the setting that applied when the data were collected, not necessarily the setting used today. Selecting timezone settings requires confirmation before summary files are prepared.
         """)
     st.markdown("""
-- **B. Participant Information:** Enter a unique Participant ID. This label will appear
-  in the output files.
-- **C. Intensity Thresholds (spm):** Adjust the thresholds if your study uses different
-  moderate physical activity (MPA) or vigorous physical activity (VPA) criteria.
-  Defaults are MPA ≥100 steps/min and VPA ≥130 steps/min.²
-- **D. Cadence Band Thresholds (spm):** Adjust the thresholds if your study uses custom
-  cadence bands. Default band names and thresholds follow Tudor-Locke et al.¹
-- **E. Data Upload:** Upload the participant's step files as described in Step 3.
+**B. Participant Information**
+
+- Enter a unique Participant ID. This label will appear in the output files.
+
+**C. Intensity Thresholds (spm)**
+
+- Adjust the thresholds if your study uses different moderate physical activity (MPA)
+  or vigorous physical activity (VPA) criteria.
+- Defaults are MPA ≥100 steps/min and VPA ≥130 steps/min.²
+
+**D. Cadence Band Thresholds (spm)**
+
+- Adjust the thresholds if your study uses custom cadence bands.
+- Default band names and thresholds follow Tudor-Locke et al.¹
+
+**E. Data Upload**
+
+- Upload the participant's step files as described in Step 3.
     """)
 
 with st.expander("Step 3: Upload Files and Select the Analysis Dates", expanded=False):

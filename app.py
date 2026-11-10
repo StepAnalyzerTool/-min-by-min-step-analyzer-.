@@ -68,19 +68,22 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     and latest available dates. Select the intended analysis start and end dates, then confirm
     the range. All daily and detailed exports retain the full selected date range.
 
-    The **Red Flag Summary and Day Selection** appears first. Check **Exclude from averages** beside individual dates, or select **Include all dates**
-    to use the entire date range.
-    You can enter a reason, including participant-reported nonwear, a broken or lost
-    Fitbit, or another study criterion. Flags are prompts for review, not automatic
-    exclusions or evidence of nonwear. Define and report your study's inclusion criteria.
+    Choose whether to **review red flags and/or exclude individual days**. If Yes,
+    review the table, check **Exclude** beside dates you want to omit from participant
+    averages, and optionally enter an exclusion reason. **Include all dates** overrides
+    individual exclusions. Flags prompt review; they do not establish nonwear or automatically
+    exclude dates. Define and report your study's inclusion criteria.
 
-    Exclusions affect only the new **Participant Averages** file. Daily and detailed
-    exports retain every date; the Daily and Red Flag summaries record inclusion
-    decisions and reasons. Averages give each included day equal weight and exclude
-    NA separately for each measure. Each mean reports its contributing-day count;
-    recorded zeros count, and missing values are never replaced with zero.
-    Download the five output files below the review table.
-    
+    If No, all dates are included and the on-screen review is skipped. A Red Flag Summary
+    is still provided among the downloads. When ready, click **Yes — prepare downloadable files**.
+    Five download buttons then appear in a row, each with expandable calculation and output details.
+    Changing settings or exclusion decisions requires preparing the files again.
+
+    Exclusions affect only **Participant Averages**. Daily and detailed exports retain every date;
+    the Daily and Red Flag summaries record inclusion decisions and reasons. Averages give each
+    included day equal weight and omit NA separately for each measure, reporting its contributing-day
+    count. Recorded zeros count; missing values are never replaced with zero.
+
     Missing minutes are exported as **NA** (no record in the source file), for both
     JSON and CSV inputs. Explicit recorded zeros remain **0**. Missing records do
     not establish inactivity or nonwear. Totals and cadence/intensity minutes use
@@ -658,137 +661,163 @@ elif uploaded_files:
         hourly_steps_summary = build_hourly_steps_summary(part_df)
         red_flag_summary = build_red_flag_summary(part_df, manual_participant_id)
 
-        # 6. REVIEW DAYS BEFORE DOWNLOADS. No flag automatically excludes a day.
-        st.subheader("Red Flag Summary and Day Selection")
-        st.write(
-            "Review the daily indicators below before calculating participant averages. "
-            "Flags do not establish nonwear or make a day invalid. You may exclude dates "
-            "for a flag or any study-specific reason, such as reported nonwear, a broken "
-            "Fitbit, or a lost device."
-        )
+        # 6. OPTIONAL REVIEW. Calculations above support review; CSVs are prepared only on request.
         # Reset decisions for different input records, participant, timezone, dates or thresholds.
         review_context = hashlib.sha256(
             pd.util.hash_pandas_object(df[['value']], index=True).values.tobytes()
             + repr((manual_participant_id, timezone, analysis_start_date, analysis_end_date,
                     mpa, vpa, bins)).encode('utf-8')
         ).hexdigest()
-        include_all = st.checkbox(
-            "Include all dates from the analysis start date through the end date in participant averages",
-            value=False, key=f"include_all_v2_{review_context}"
+        review_choice = st.radio(
+            "Would you like to review red flags and/or exclude individual days?",
+            ["Yes", "No"], index=None, horizontal=True, key=f"review_choice_{review_context}"
         )
-        if include_all:
-            st.info("Individual exclusions and notes are locked because Include all dates is checked. Uncheck it to edit the table.")
-        else:
-            st.info("Check Exclude from averages beside a date to exclude it. Double-click its Exclusion reason cell to type a note, then press Enter. Dates remain included unless you check their exclusion boxes.")
-        st.caption(
-            "Include all dates overrides individual exclusions. "
-            "An exclusion reason is optional. The other four exports retain every date. "
-            "Missing minutes are not evidence of inactivity or nonwear."
-        )
-        review = red_flag_summary.copy()
-        flag_labels = {
-            'No_Recorded_Data_Day': 'No recorded data',
-            'Recorded_Zero_Steps_Day': 'Recorded steps total zero',
-            'Red_Flag_Total_Steps_Under_1000': 'Recorded steps below 1,000',
-            'Red_Flag_Activity_In_Only_One_Daypart': 'Steps in only one daypart',
-            'Red_Flag_Activity_Span_Under_6_Hours': 'First-to-last positive minute span below 6 hours',
-        }
-        review['Flag_Reasons'] = review.apply(
-            lambda row: '; '.join(label for column, label in flag_labels.items()
-                                  if pd.notna(row[column]) and bool(row[column])), axis=1
-        )
-        review.insert(0, 'Exclude_from_Averages', False)
-        review.insert(1, 'Exclusion_Reason', '')
-        leading_columns = [
-            'Exclude_from_Averages', 'Exclusion_Reason', 'Date', 'Flag_Reasons',
-            'Total_Steps', 'Recorded_Minutes', 'Missing_Minutes',
-            'Total_Step_Positive_Minutes', 'Number_of_Red_Flags',
-        ]
-        review = review[leading_columns + [c for c in review.columns if c not in leading_columns]]
-        edited_review = st.data_editor(
-            review, hide_index=True, use_container_width=True,
-            key=f"day_review_v2_{review_context}_{include_all}",
-            disabled=True if include_all else [
-                c for c in review.columns if c not in ('Exclude_from_Averages', 'Exclusion_Reason')
-            ],
-            column_config={
-                'Exclude_from_Averages': st.column_config.CheckboxColumn('Exclude from averages'),
-                'Exclusion_Reason': st.column_config.TextColumn('Exclusion reason (optional)'),
+        if review_choice is None:
+            st.info("Choose Yes or No to continue.")
+            st.stop()
+        decisions = red_flag_summary[['Date']].copy()
+        decisions['Included_in_Participant_Summary'] = True
+        decisions['Exclusion_Reason'] = ''
+        if review_choice == "Yes":
+            st.subheader("Red Flag Summary and Day Selection")
+            st.write("Flags prompt review; they do not establish nonwear or automatically exclude days. You may exclude a day for any study-specific reason.")
+            include_all = st.checkbox(
+                "Include all dates from the analysis start date through the end date in participant averages",
+                value=False, key=f"include_all_v2_{review_context}"
+            )
+            if include_all:
+                st.info("Individual exclusions and notes are locked because Include all dates is checked. Uncheck it to edit the table.")
+            else:
+                st.info("Check Exclude from averages beside a date to exclude it. Double-click its Exclusion reason cell to type a note, then press Enter. Dates remain included unless you check their exclusion boxes.")
+            st.caption(
+                "Include all dates overrides individual exclusions. "
+                "An exclusion reason is optional. The other four exports retain every date. "
+                "Missing minutes are not evidence of inactivity or nonwear."
+            )
+            review = red_flag_summary.copy()
+            flag_labels = {
+                'No_Recorded_Data_Day': 'No recorded data',
+                'Recorded_Zero_Steps_Day': 'Recorded steps total zero',
+                'Red_Flag_Total_Steps_Under_1000': 'Recorded steps below 1,000',
+                'Red_Flag_Activity_In_Only_One_Daypart': 'Steps in only one daypart',
+                'Red_Flag_Activity_Span_Under_6_Hours': 'First-to-last positive minute span below 6 hours',
             }
-        )
-        decisions = edited_review[['Date', 'Exclude_from_Averages', 'Exclusion_Reason']].copy()
-        if include_all:
-            decisions['Exclude_from_Averages'] = False
-        decisions['Included_in_Participant_Summary'] = ~decisions['Exclude_from_Averages'].fillna(False).astype(bool)
-        decisions['Exclusion_Reason'] = decisions['Exclusion_Reason'].fillna('').where(
-            ~decisions['Included_in_Participant_Summary'], ''
-        )
-        decisions = decisions[['Date', 'Included_in_Participant_Summary', 'Exclusion_Reason']]
+            review['Flag_Reasons'] = review.apply(
+                lambda row: '; '.join(label for column, label in flag_labels.items()
+                                      if pd.notna(row[column]) and bool(row[column])), axis=1
+            )
+            review.insert(0, 'Exclude_from_Averages', False)
+            review.insert(1, 'Exclusion_Reason', '')
+            leading_columns = [
+                'Exclude_from_Averages', 'Date', 'Exclusion_Reason', 'Flag_Reasons',
+                'Total_Steps', 'Recorded_Minutes', 'Missing_Minutes',
+                'Total_Step_Positive_Minutes', 'Number_of_Red_Flags',
+            ]
+            review = review[leading_columns]
+            edited_review = st.data_editor(
+                review, hide_index=True, use_container_width=True,
+                key=f"day_review_v3_{review_context}_{include_all}",
+                disabled=True if include_all else [
+                    c for c in review.columns if c not in ('Exclude_from_Averages', 'Exclusion_Reason')
+                ],
+                column_config={
+                    'Exclude_from_Averages': st.column_config.CheckboxColumn('Exclude', width='small'),
+                    'Date': st.column_config.DateColumn('Date', format='YYYY-MM-DD', width='small'),
+                    'Flag_Reasons': st.column_config.TextColumn('Red flag reasons', width='large'),
+                    'Exclusion_Reason': st.column_config.TextColumn('Exclusion reason (optional)', width='large'),
+                }
+            )
+            with st.expander("Full red flag reasons (not truncated)", expanded=True):
+                flagged = review.loc[review['Flag_Reasons'].ne('')]
+                if flagged.empty:
+                    st.write("No dates meet the current red flag criteria.")
+                for _, row in flagged.iterrows():
+                    st.markdown(f"**{row['Date']}** — {row['Flag_Reasons']}")
+            decisions = edited_review[['Date', 'Exclude_from_Averages', 'Exclusion_Reason']].copy()
+            if include_all:
+                decisions['Exclude_from_Averages'] = False
+            decisions['Included_in_Participant_Summary'] = ~decisions['Exclude_from_Averages'].fillna(False).astype(bool)
+            decisions['Exclusion_Reason'] = decisions['Exclusion_Reason'].fillna('').where(
+                ~decisions['Included_in_Participant_Summary'], ''
+            )
+            decisions = decisions[['Date', 'Included_in_Participant_Summary', 'Exclusion_Reason']]
+        else:
+            st.info("All dates will be included. A Red Flag Summary will still be available as a download.")
         final_summary = final_summary.merge(decisions, on='Date', validate='one_to_one')
         red_flag_summary = red_flag_summary.merge(decisions, on='Date', validate='one_to_one')
+        included_count = int(final_summary['Included_in_Participant_Summary'].sum())
+        st.caption(f"{included_count} included day(s); {len(final_summary) - included_count} excluded day(s). Exclusions affect participant averages only.")
+        if included_count == 0:
+            st.warning("No dates are included. Participant means will be NA with zero contributing days.")
+        # Reconfirm after any change to settings, review mode, dates, exclusions or reasons.
+        output_context = hashlib.sha256(
+            (review_context + review_choice).encode('utf-8')
+            + pd.util.hash_pandas_object(decisions, index=False).values.tobytes()
+        ).hexdigest()
+        if st.session_state.get('prepared_output_context') != output_context:
+            st.session_state.pop('prepared_output_context', None)
+        st.subheader("Ready to prepare your downloadable analysis files?")
+        if st.button("Yes — prepare downloadable files", key=f"prepare_{output_context}", type="primary"):
+            st.session_state['prepared_output_context'] = output_context
+        if st.session_state.get('prepared_output_context') != output_context:
+            st.caption("Review your choices above, then click Yes. Download files have not yet been generated for these choices.")
+            st.stop()
+
         participant_averages = build_participant_averages(
             final_summary, column_order, manual_participant_id, timezone,
             analysis_start_date, analysis_end_date
         )
-        included_count = int(final_summary['Included_in_Participant_Summary'].sum())
+        st.success("Your five analysis files are ready.")
         st.caption(
-            f"{included_count} included day(s); {len(final_summary) - included_count} excluded day(s). "
-            "Each mean uses only included days with a non-NA value for that measure. "
-            "Recorded zeros count. Averages describe recorded data; they do not estimate missing activity."
+            f"Dates are based on {timezone}. Daily and detailed outputs retain the full selected range; "
+            "only participant averages use your day exclusions. Missing values are exported as NA."
         )
-        if included_count == 0:
-            st.warning("No dates are included. Participant means are NA and contributing-day counts are zero.")
-        st.subheader("Participant Averages")
-        st.dataframe(
-            participant_averages[['Measure', 'Mean_Per_Day', 'Contributing_Days', 'Included_Days_With_NA']],
-            hide_index=True, use_container_width=True
-        )
-        st.download_button(
-            "📥 Download Participant Averages (CSV)",
-            data=participant_averages.to_csv(index=False, na_rep="NA").encode('utf-8-sig'),
-            file_name=f"{manual_participant_id}_Participant_Averages.csv", mime="text/csv"
-        )
-        st.success("✅ Analysis Complete!")
-        st.caption(
-            f"Source timestamps were interpreted as UTC and converted to {timezone} "
-            "before aggregation. Date-specific daylight-saving offsets were applied automatically. "
-            f"The following four exports retain all dates from {analysis_start_date:%B %d, %Y} through "
-            f"{analysis_end_date:%B %d, %Y}; exclusions affect only Participant Averages."
-        )
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            csv_summary = final_summary.to_csv(index=False, na_rep="NA").encode('utf-8')
-            st.download_button(
-                "📥 Download Daily Summaries (CSV)",
-                data=csv_summary,
-                file_name=f"{manual_participant_id}_Daily_Summaries.csv",
-                mime="text/csv"
-            )
-        with col2:
-            csv_min_by_min = final_min_by_min.to_csv(index=False, na_rep="NA").encode('utf-8')
-            st.download_button(
-                "📥 Download Minute-by-Minute Log (CSV)",
-                data=csv_min_by_min,
-                file_name=f"{manual_participant_id}_Min_by_Min.csv",
-                mime="text/csv"
-            )
-        with col3:
-            csv_hourly = hourly_steps_summary.to_csv(index=False, na_rep="NA").encode('utf-8-sig')
-            st.download_button(
-                "📊 Download Hourly Steps Summary (CSV)",
-                data=csv_hourly,
-                file_name=f"{manual_participant_id}_Hourly_Steps_Summary.csv",
-                mime="text/csv"
-            )
-        with col4:
-            csv_red_flags = red_flag_summary.to_csv(index=False, na_rep="NA").encode('utf-8-sig')
-            st.download_button(
-                "🚩 Download Red Flag Summary (CSV)",
-                data=csv_red_flags,
-                file_name=f"{manual_participant_id}_Red_Flag_Summary.csv",
-                mime="text/csv"
-            )
+        downloads = [
+            ("Daily Summary", final_summary, "Daily_Summaries", """
+Daily recorded steps; step-positive minutes; MPA, VPA and MVPA minutes and steps;
+minutes and steps in each cadence band; peak 1-, 30- and 60-minute cadence; and coverage counts.
+MPA is at least the selected MPA threshold and below VPA; VPA is at least the VPA threshold.
+MVPA combines MPA and VPA. Band steps sum the recorded counts within each band.
+Peak cadence averages the highest N recorded minute counts, which need not be consecutive.
+A peak is NA if fewer than N recorded minutes exist. Recorded zeros remain eligible.
+All dates remain, with inclusion decisions and exclusion reasons.
+"""),
+            ("Minute-by-Minute", final_min_by_min, "Min_by_Min", """
+Participant ID, local date, local time and steps for every minute in the selected range.
+Absent records are NA; explicitly recorded zeros stay zero. Days follow the selected timezone,
+including daylight-saving changes. Excluded dates remain in this file.
+"""),
+            ("Hourly Steps", hourly_steps_summary, "Hourly_Steps_Summary", """
+Recorded step totals for each local clock hour, with recorded- and missing-minute counts.
+Hours with no records have NA totals. A repeated daylight-saving hour is combined under its
+clock-hour label. Excluded dates remain in this file.
+"""),
+            ("Red Flag Summary", red_flag_summary, "Red_Flag_Summary", """
+Daily and daypart steps, step-positive minutes, data coverage, activity span and explicit-zero
+intervals. Flags identify no recorded data, recorded zero-step days, fewer than 1,000 steps,
+steps in only one daypart, or an activity span below six hours. These indicators do not establish
+nonwear or automatically exclude dates. NA interrupts zero-step intervals. All dates remain,
+with your inclusion decisions and exclusion reasons, even when you skip the on-screen review.
+"""),
+            ("Participant Averages", participant_averages, "Participant_Averages", """
+An equally weighted mean of each daily measure across your included dates, including activity
+and coverage measures. NA is omitted separately for each measure; recorded zeros count.
+Each row reports its contributing-day count, included days with NA, and total included/excluded
+days. If no included day has a value, the mean is NA. These averages describe recorded data
+and do not estimate activity during missing minutes.
+"""),
+        ]
+        for column, (title, frame, suffix, explanation) in zip(st.columns(5), downloads):
+            with column:
+                st.download_button(
+                    f"📥 {title}",
+                    data=frame.to_csv(index=False, na_rep="NA").encode('utf-8-sig'),
+                    file_name=f"{manual_participant_id}_{suffix}.csv", mime="text/csv"
+                )
+                with st.expander("Calculations and output details"):
+                    st.markdown(explanation)
 
     else:
         st.error("❌ No valid Fitbit data found in the uploaded files. Please check your files and try again.")
+
 

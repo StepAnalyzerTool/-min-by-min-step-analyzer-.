@@ -1200,8 +1200,8 @@ One row per selected day, including excluded days and their reasons.
 One row per participant, with a separate average for each daily measure.
 
 - **Participant_ID, Timezone, Analysis_Start_Date, and Analysis_End_Date:** Identifies the participant and analysis settings.
-- **Days_In_Date_Range, Included_Days, and Excluded_Days:** Reports your date selections once.
-- **Columns beginning with Mean_Daily_:** The daily average for the named measure, such as **Mean_Daily_Steps**, **Mean_Daily_Step_Positive_Minutes**, or **Mean_Daily_Weighted_MVPA_Minutes**. Measures include total steps; step-positive minutes (minutes with at least one step); MPA, VPA, and MVPA minutes; weighted MVPA minutes (MPA + 2 × VPA); MPA, VPA, and MVPA steps; minutes and steps in each of the eight cadence bands; and peak 1-, 30-, and 60-minute cadence.  
+- **Days_In_Date_Range, Included_Days, and Excluded_Days:** Reports your date selections.
+- **Columns beginning with Mean_Daily_:** The daily average for the measure: total steps; step-positive minutes (minutes with at least one step); MPA, VPA, and MVPA minutes; weighted MVPA minutes (MPA + 2 × VPA); MPA, VPA, and MVPA steps; minutes and steps in each of the eight cadence bands; and peak 1-, 30-, and 60-minute cadence.  
   **Formula:** Mean = sum of included daily values ÷ contributing days.
 - **Columns ending in _Contributing_Days:** Included days with a value for that measure.
 - **Columns ending in _Included_Days_With_NA:** Included days without a value for that measure.  

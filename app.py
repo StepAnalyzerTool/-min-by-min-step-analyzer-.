@@ -170,7 +170,7 @@ with st.expander("Step 4: Select the Analysis Dates", expanded=False):
 with st.expander("Step 5: Generate the Summary Files", expanded=False):
     st.markdown("""
 - Click **Yes — prepare downloadable files** when you are ready.
-- Five download buttons appear, one per row, labeled with the full filename. Open the **About** dropdown beneath a button for its calculations and contents.
+- Five download buttons appear, one per row, labeled with the full filename. The **About** dropdowns below the download buttons explain each file's calculations and contents.
 - If you change settings or exclusions, prepare the files again before downloading.
 
 **Available CSV files**
@@ -1204,6 +1204,7 @@ Recorded zeros count; NA values and excluded days do not. For example, 4,000, 6,
                 file_name=download_filename, mime="text/csv",
                 use_container_width=True
             )
+        for title, _, _, explanation in downloads:
             with st.expander(f"About {title}", expanded=False):
                 st.markdown(explanation)
 

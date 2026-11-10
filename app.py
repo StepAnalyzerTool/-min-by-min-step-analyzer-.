@@ -47,9 +47,7 @@ Use the options on the **left side of the page**:
     """)
     with st.expander("How timezone selections affect data analysis", expanded=False):
         st.markdown("""
-Timezone conversion occurs before dates are selected and before daily and hourly summaries
-are calculated. It can move records to a different date or hour, changing daily totals,
-cadence summaries, flags and participant averages. The step count in each record is unchanged.
+Timezone conversion can move records to a different date or hour, changing daily totals, cadence summaries, flags and participant averages.
 
 - **UTC:** Keeps the original UTC dates and times, without daylight-saving adjustments.
 - **Daylight saving selected:** Uses the chosen location's historical timezone rules for each

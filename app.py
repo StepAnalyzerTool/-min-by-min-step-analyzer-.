@@ -24,8 +24,7 @@ with st.expander("Step 1: Export Your Fitbit Data", expanded=False):
 3. Follow [Google's download instructions](https://support.google.com/accounts/answer/3024190)
    to create and download the archive. Choose **ZIP** as the archive file type.
 4. Unzip the downloaded archive and open **"Physical Activity_GoogleData"**.
-5. Open the **"Steps"** subfolder and locate the **"steps_YYYY-MM-DD.csv"** files. These contain **timestamp**,
-   **steps**, and **data source** columns.
+5. Open the **"Steps"** subfolder and locate the **"steps_YYYY-MM-DD.csv"** files.
 
 **Legacy Fitbit Files**
 

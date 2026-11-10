@@ -617,11 +617,9 @@ elif uploaded_files:
         all_raw_dfs.append(temp_df)
         accepted_files.append({'File': file.name, 'Step records': len(temp_df)})
 
-    st.subheader("Upload Review")
-    st.write(f"**Accepted files: {len(accepted_files)}**")
-    if accepted_files:
-        st.dataframe(pd.DataFrame(accepted_files), hide_index=True, use_container_width=True)
     if rejected_files:
+        st.subheader("Upload Review")
+        st.write(f"**Accepted files: {len(accepted_files)}**")
         st.warning(f"{len(rejected_files)} file(s) could not be used. No records from these files will be analyzed.")
         for item in rejected_files:
             st.text(item['File'])

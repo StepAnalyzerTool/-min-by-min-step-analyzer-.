@@ -109,7 +109,7 @@ with st.expander("Step 3: Upload Files", expanded=False):
 
 with st.expander("Step 4: Select the Analysis Dates", expanded=False):
     st.markdown("""
-- After files are read and timestamps are converted to your selected timezone, the tool displays the earliest and latest available dates. Select your analysis start and end dates, then confirm the range.
+- After files are read and timestamps are converted to your selected timezone, the tool displays the earliest and latest available dates. Select your analysis start and end dates, then confirm the range. The controls collapse into a checked **Confirmed dates** box; uncheck it to change the dates.
 - Choose whether to **review red flags and/or exclude individual days**:
   - **Yes:** Check **Exclude** beside dates you want to omit from participant averages and optionally enter a reason. **Include all dates** overrides individual exclusions.
   - **No:** All dates are included and the on-screen review is skipped. The Red Flag Summary is still provided as a download.
@@ -650,64 +650,76 @@ elif uploaded_files:
         earliest_available_date = df.index.min().date()
         latest_available_date = df.index.max().date()
 
-        st.write("### Select Analysis Date Range")
-        st.info(
-            f"Available local dates: **{earliest_available_date:%B %d, %Y}** "
-            f"through **{latest_available_date:%B %d, %Y}**"
-        )
+        date_context = hashlib.sha256(
+            (batch_hash.hexdigest() + timezone_description).encode('utf-8')
+        ).hexdigest()
+        confirmed_dates = st.session_state.get('confirmed_analysis_dates')
+        if confirmed_dates and confirmed_dates['context'] != date_context:
+            st.session_state.pop('confirmed_analysis_dates', None)
+            confirmed_dates = None
+        date_revision = st.session_state.get('date_selection_revision', 0)
 
-        date_col1, date_col2 = st.columns(2)
-        with date_col1:
-            analysis_start_date = st.date_input(
-                "Analysis start date",
-                value=earliest_available_date,
-                min_value=earliest_available_date,
-                max_value=latest_available_date
+        if confirmed_dates:
+            analysis_start_date = confirmed_dates['start']
+            analysis_end_date = confirmed_dates['end']
+            keep_dates = st.checkbox(
+                f"Confirmed dates: {analysis_start_date:%B %d, %Y} through {analysis_end_date:%B %d, %Y}",
+                value=True, key=f"confirmed_dates_{date_context}_{date_revision}",
+                help="Uncheck to change the analysis start and end dates."
             )
-        with date_col2:
-            analysis_end_date = st.date_input(
-                "Analysis end date",
-                value=latest_available_date,
-                min_value=earliest_available_date,
-                max_value=latest_available_date
-            )
-
-        valid_date_range = analysis_start_date <= analysis_end_date
-        if not valid_date_range:
-            st.error("❌ The analysis start date must be on or before the end date.")
-
-        date_range_confirmed = st.checkbox(
-            (
-                "I confirm that the analysis should include "
-                f"{analysis_start_date:%B %d, %Y} through "
-                f"{analysis_end_date:%B %d, %Y}"
-            ),
-            value=False,
-            disabled=not valid_date_range
-        )
-
-        if valid_date_range:
-            local_dates = pd.Series(df.index.date, index=df.index)
-            selected_date_mask = (
-                (local_dates >= analysis_start_date)
-                & (local_dates <= analysis_end_date)
-            )
-            selected_df = df.loc[selected_date_mask.to_numpy()]
+            if not keep_dates:
+                st.session_state['date_selection_draft'] = confirmed_dates
+                st.session_state.pop('confirmed_analysis_dates', None)
+                st.session_state.pop('prepared_output_context', None)
+                st.session_state['date_selection_revision'] = date_revision + 1
+                st.rerun()
         else:
-            selected_df = df.iloc[0:0]
-
-        if valid_date_range and selected_df.empty:
-            st.warning("No source records occur in this range. Outputs will mark every minute as NA.")
-
-        if not date_range_confirmed:
+            st.write("### Select Analysis Date Range")
+            st.info(
+                f"Available local dates: **{earliest_available_date:%B %d, %Y}** "
+                f"through **{latest_available_date:%B %d, %Y}**"
+            )
+            draft = st.session_state.get('date_selection_draft', {})
+            if draft.get('context') != date_context:
+                draft = {}
+            date_col1, date_col2 = st.columns(2)
+            with date_col1:
+                analysis_start_date = st.date_input(
+                    "Analysis start date",
+                    value=draft.get('start', earliest_available_date),
+                    min_value=earliest_available_date, max_value=latest_available_date,
+                    key=f"analysis_start_{date_context}_{date_revision}"
+                )
+            with date_col2:
+                analysis_end_date = st.date_input(
+                    "Analysis end date",
+                    value=draft.get('end', latest_available_date),
+                    min_value=earliest_available_date, max_value=latest_available_date,
+                    key=f"analysis_end_{date_context}_{date_revision}"
+                )
+            valid_date_range = analysis_start_date <= analysis_end_date
+            if not valid_date_range:
+                st.error("❌ The analysis start date must be on or before the end date.")
+            date_range_confirmed = st.checkbox(
+                f"I confirm that the analysis should include {analysis_start_date:%B %d, %Y} through {analysis_end_date:%B %d, %Y}",
+                value=False, disabled=not valid_date_range,
+                key=f"confirm_date_selection_{date_context}_{date_revision}_{analysis_start_date}_{analysis_end_date}"
+            )
+            if date_range_confirmed and valid_date_range:
+                st.session_state['confirmed_analysis_dates'] = {
+                    'context': date_context, 'start': analysis_start_date, 'end': analysis_end_date
+                }
+                st.rerun()
             st.info("Confirm the analysis date range to review days and generate outputs.")
             st.stop()
 
-        df = selected_df
-        st.write(
-            f"### Processing {analysis_start_date:%B %d, %Y} through "
-            f"{analysis_end_date:%B %d, %Y}..."
+        local_dates = pd.Series(df.index.date, index=df.index)
+        selected_date_mask = (
+            (local_dates >= analysis_start_date) & (local_dates <= analysis_end_date)
         )
+        df = df.loc[selected_date_mask.to_numpy()]
+        if df.empty:
+            st.warning("No source records occur in this range. Outputs will mark every minute as NA.")
 
         unique_dates = pd.date_range(analysis_start_date, analysis_end_date, freq="D", tz=analysis_timezone)
         participant_full_timeseries = []
@@ -1002,6 +1014,7 @@ and do not estimate activity during missing minutes.
 
     else:
         st.error("❌ No valid Fitbit data found in the uploaded files. Please check your files and try again.")
+
 
 
 

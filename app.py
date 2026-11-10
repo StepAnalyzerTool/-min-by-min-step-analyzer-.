@@ -76,7 +76,7 @@ with st.expander("📋 How to Use This Tool", expanded=True):
 
     If No, all dates are included and the on-screen review is skipped. A Red Flag Summary
     is still provided among the downloads. When ready, click **Yes — prepare downloadable files**.
-    Five download buttons then appear in a row, each with expandable calculation and output details.
+    Five download buttons then appear one per row, each with expandable calculation and output details.
     Changing settings or exclusion decisions requires preparing the files again.
 
     Exclusions affect only **Participant Averages**. Daily and detailed exports retain every date;
@@ -782,12 +782,12 @@ Peak cadence averages the highest N recorded minute counts, which need not be co
 A peak is NA if fewer than N recorded minutes exist. Recorded zeros remain eligible.
 All dates remain, with inclusion decisions and exclusion reasons.
 """),
-            ("Minute-by-Minute", final_min_by_min, "Min_by_Min", """
+            ("Minute-by-Minute Log", final_min_by_min, "Min_by_Min", """
 Participant ID, local date, local time and steps for every minute in the selected range.
 Absent records are NA; explicitly recorded zeros stay zero. Days follow the selected timezone,
 including daylight-saving changes. Excluded dates remain in this file.
 """),
-            ("Hourly Steps", hourly_steps_summary, "Hourly_Steps_Summary", """
+            ("Hourly Steps Summary", hourly_steps_summary, "Hourly_Steps_Summary", """
 Recorded step totals for each local clock hour, with recorded- and missing-minute counts.
 Hours with no records have NA totals. A repeated daylight-saving hour is combined under its
 clock-hour label. Excluded dates remain in this file.
@@ -807,15 +807,15 @@ days. If no included day has a value, the mean is NA. These averages describe re
 and do not estimate activity during missing minutes.
 """),
         ]
-        for column, (title, frame, suffix, explanation) in zip(st.columns(5), downloads):
-            with column:
-                st.download_button(
-                    f"📥 {title}",
-                    data=frame.to_csv(index=False, na_rep="NA").encode('utf-8-sig'),
-                    file_name=f"{manual_participant_id}_{suffix}.csv", mime="text/csv"
-                )
-                with st.expander("Calculations and output details"):
-                    st.markdown(explanation)
+        for title, frame, suffix, explanation in downloads:
+            st.download_button(
+                f"📥 Download {title} (CSV)",
+                data=frame.to_csv(index=False, na_rep="NA").encode('utf-8-sig'),
+                file_name=f"{manual_participant_id}_{suffix}.csv", mime="text/csv",
+                use_container_width=True
+            )
+            with st.expander(f"About {title}: calculations and output details"):
+                st.markdown(explanation)
 
     else:
         st.error("❌ No valid Fitbit data found in the uploaded files. Please check your files and try again.")

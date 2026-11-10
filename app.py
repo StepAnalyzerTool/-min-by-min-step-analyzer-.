@@ -86,6 +86,9 @@ with st.expander("Step 3: Upload Files", expanded=False):
     st.markdown("""
 - Use **E. Data Upload** on the left to upload Google Takeout steps CSV files or older Fitbit JSON files.
 - Upload files for one participant and one data source at a time.
+- Review the accepted files and any files that could not be used. Remove or replace rejected
+  files, or explicitly choose **Continue with accepted files only**. If no files are usable,
+  processing stops until you supply a usable file.
     """)
     with st.expander("Recorded zeros, missing minutes, and file formats", expanded=False):
         st.markdown("""
@@ -214,6 +217,50 @@ def build_participant_averages(daily, metric_columns, participant_id, timezone, 
     return pd.DataFrame(rows)
 
 
+def upload_error_details(error):
+    """Return a plain-language reason and recovery action for a rejected file."""
+    messages = {
+        "CSV requires timestamp, steps, and data source columns.": (
+            "This CSV is not in the supported Google Takeout steps format.",
+            "Choose a steps_YYYY-MM-DD.csv file from Physical Activity_GoogleData / Steps."),
+        "Multiple data sources found; upload steps from one source at a time.": (
+            "This file contains records from more than one data source.",
+            "Provide step records for one participant and one data source at a time."),
+        "CSV timestamps require Z (UTC) or an explicit timezone offset.": (
+            "The timestamps do not include the required timezone information.",
+            "Upload the original Google Takeout steps CSV without changing its timestamps."),
+        "Expected a nonempty list of Fitbit step records.": (
+            "This JSON file is empty or is not a supported Fitbit step-record file.",
+            "Choose an original steps-YYYY-MM-DD.json file from the Fitbit export."),
+        "JSON requires dateTime and value fields.": (
+            "This JSON file does not contain the required step-record information.",
+            "Choose a steps-YYYY-MM-DD.json file, rather than another Fitbit data file."),
+        "Upload a steps JSON or CSV file.": (
+            "This file type is not supported.", "Upload a steps CSV or JSON file; unzip downloaded archives first."),
+        "The file contains no step records.": (
+            "This file contains no step records.", "Remove this file or replace it with an export that contains step records."),
+        "Step counts must be nonnegative whole numbers, without blanks.": (
+            "One or more step counts are blank, nonnumeric, negative, fractional, or outside the supported numeric range.",
+            "Check that this is an original step-data export. Replace or correct the file before retrying; do not replace missing data with zero."),
+        "Missing timestamps are not supported.": (
+            "One or more step records have no timestamp.", "Replace the file with an intact original export, or correct the timestamps before retrying."),
+        "Invalid step timestamps.": (
+            "One or more timestamps cannot be read as a date and time.", "Use the original export without reformatting its dates or times."),
+        "Expected minute-aligned timestamps.": (
+            "Some timestamps contain seconds or fractions of a second instead of whole minutes.",
+            "Choose minute-level step files. Do not round or change timestamps just to make the file load."),
+    }
+    if str(error) in messages:
+        return messages[str(error)]
+    if isinstance(error, pd.errors.EmptyDataError):
+        return ("This CSV file is empty.", "Remove it or upload an export containing step records.")
+    if isinstance(error, (json.JSONDecodeError, pd.errors.ParserError, UnicodeDecodeError)):
+        return ("The file could not be read in its expected CSV or JSON format.",
+                "Upload the original downloaded file. If it is damaged, download a fresh copy.")
+    return ("The tool could not read this file.",
+            "Check that it is an original supported step-data export. Replace it or remove it before continuing.")
+
+
 def read_step_file(file):
     """Read legacy Fitbit JSON or Google Takeout steps CSV (November 2026)."""
     file.seek(0)
@@ -226,7 +273,10 @@ def read_step_file(file):
         raw_times = frame['timestamp'].str.strip()
         if not raw_times.str.contains(r'(?:Z|[+-]\d{2}:?\d{2})$', na=False).all():
             raise ValueError("CSV timestamps require Z (UTC) or an explicit timezone offset.")
-        times = raw_times.map(lambda value: pd.to_datetime(value, errors='raise', utc=True))
+        try:
+            times = raw_times.map(lambda value: pd.to_datetime(value, errors='raise', utc=True))
+        except (ValueError, TypeError, OverflowError) as error:
+            raise ValueError("Invalid step timestamps.") from error
         frame = frame.rename(columns={'timestamp': 'dateTime', 'steps': 'value'})
     elif file.name.lower().endswith('.json'):
         data = json.load(file)
@@ -235,13 +285,19 @@ def read_step_file(file):
         frame = pd.DataFrame(data)
         if not {'dateTime', 'value'}.issubset(frame.columns):
             raise ValueError("JSON requires dateTime and value fields.")
-        times = pd.to_datetime(frame['dateTime'], errors='raise', utc=True)
+        try:
+            times = pd.to_datetime(frame['dateTime'], errors='raise', utc=True)
+        except (ValueError, TypeError, OverflowError) as error:
+            raise ValueError("Invalid step timestamps.") from error
     else:
         raise ValueError("Upload a steps JSON or CSV file.")
     if frame.empty:
         raise ValueError("The file contains no step records.")
-    counts = pd.to_numeric(frame['value'], errors='raise')
-    if counts.isna().any() or ((counts < 0) | (counts % 1 != 0)).any():
+    try:
+        counts = pd.to_numeric(frame['value'], errors='raise')
+    except (ValueError, TypeError, OverflowError) as error:
+        raise ValueError("Step counts must be nonnegative whole numbers, without blanks.") from error
+    if counts.isna().any() or ((counts < 0) | (counts >= 2**63) | (counts % 1 != 0)).any():
         raise ValueError("Step counts must be nonnegative whole numbers, without blanks.")
     if times.isna().any():
         raise ValueError("Missing timestamps are not supported.")
@@ -545,15 +601,49 @@ elif uploaded_files:
     st.write(f"### Reading {len(uploaded_files)} file(s) for {manual_participant_id}...")
 
     all_raw_dfs = []
+    accepted_files = []
+    rejected_files = []
+    batch_hash = hashlib.sha256(manual_participant_id.encode('utf-8'))
 
-    # 1. READ AND VALIDATE JSON OR CSV STEP RECORDS
+    # Validate each file completely. No records from rejected files enter the analysis.
     for file in uploaded_files:
+        file.seek(0)
+        contents = file.read()
+        if isinstance(contents, str):
+            contents = contents.encode('utf-8')
+        batch_hash.update(file.name.encode('utf-8'))
+        batch_hash.update(hashlib.sha256(contents).digest())
         try:
             temp_df = read_step_file(file)
-        except Exception as e:
-            st.warning(f"⚠️ Skipping `{file.name}`: {e}")
+        except Exception as error:
+            reason, action = upload_error_details(error)
+            rejected_files.append({'File': file.name, 'Why it could not be used': reason, 'What to do': action})
             continue
         all_raw_dfs.append(temp_df)
+        accepted_files.append({'File': file.name, 'Step records': len(temp_df)})
+
+    st.subheader("Upload Review")
+    st.write(f"**Accepted files: {len(accepted_files)}**")
+    if accepted_files:
+        st.dataframe(pd.DataFrame(accepted_files), hide_index=True, use_container_width=True)
+    if rejected_files:
+        st.warning(f"{len(rejected_files)} file(s) could not be used. No records from these files will be analyzed.")
+        for item in rejected_files:
+            st.text(item['File'])
+            st.write(item['Why it could not be used'])
+            st.caption("What to do: " + item['What to do'])
+        if not accepted_files:
+            st.error("No usable files remain. Remove or replace the rejected files in E. Data Upload to continue.")
+            st.session_state.pop('prepared_output_context', None)
+            st.stop()
+        st.info("Remove or replace the rejected files in E. Data Upload, or explicitly continue with the accepted files only. Continuing may leave gaps in your analysis.")
+        continue_accepted = st.checkbox(
+            "Continue with accepted files only",
+            value=False, key=f"accept_partial_upload_{batch_hash.hexdigest()}"
+        )
+        if not continue_accepted:
+            st.session_state.pop('prepared_output_context', None)
+            st.stop()
 
     if all_raw_dfs:
         df = pd.concat(all_raw_dfs)
@@ -758,7 +848,7 @@ elif uploaded_files:
         # Reset decisions for different input records, participant, timezone, dates or thresholds.
         review_context = hashlib.sha256(
             pd.util.hash_pandas_object(df[['value']], index=True).values.tobytes()
-            + repr((manual_participant_id, timezone_description, observes_dst, analysis_start_date, analysis_end_date,
+            + repr((batch_hash.hexdigest(), manual_participant_id, timezone_description, observes_dst, analysis_start_date, analysis_end_date,
                     mpa, vpa, bins)).encode('utf-8')
         ).hexdigest()
         review_choice = st.radio(
@@ -916,6 +1006,7 @@ and do not estimate activity during missing minutes.
 
     else:
         st.error("❌ No valid Fitbit data found in the uploaded files. Please check your files and try again.")
+
 
 
 

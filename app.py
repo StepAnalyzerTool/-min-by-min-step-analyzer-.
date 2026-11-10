@@ -880,21 +880,23 @@ elif uploaded_files:
         decisions['Included_in_Participant_Summary'] = True
         decisions['Exclusion_Reason'] = ''
         if review_choice == "Yes":
-            st.subheader("Red Flag Summary and Day Selection")
-            st.write("Flags prompt review; they do not establish nonwear or automatically exclude days. You may exclude a day for any study-specific reason.")
+            st.subheader("Day Selection")
             include_all = st.checkbox(
-                "Include all dates from the analysis start date through the end date",
+                "Include all dates",
                 value=False, key=f"include_all_v2_{review_context}"
             )
             if include_all:
-                st.info("Individual exclusions and notes are locked because Include all dates is checked. Uncheck it to edit the table.")
+                st.info("Uncheck Include all dates to edit exclusions and reasons.")
             else:
-                st.info("Check Exclude beside a date to remove it from the analysis exports and participant averages. Double-click its Exclusion reason cell to type a note, then press Enter. Dates remain included unless you check their exclusion boxes.")
-            st.caption(
-                "Include all dates overrides individual exclusions. "
-                "An exclusion reason is optional. Only the Red Flag Summary retains excluded dates and their reasons. "
-                "Missing minutes are not evidence of inactivity or nonwear."
-            )
+                st.write("Check **Exclude** to remove a day from analysis outputs. The Red Flag Summary retains all dates.")
+                st.caption("To add an optional reason, double-click its cell, type your note, and press Enter.")
+            with st.expander("About red flags and exclusions", expanded=False):
+                st.markdown("""
+- Flags suggest days to review; they do not establish nonwear or automatically exclude days.
+- Days may be excluded for any study-specific reason.
+- **Include all dates** overrides individual exclusions.
+- Missing minutes do not establish inactivity or nonwear.
+                """)
             review = red_flag_summary.copy()
             flag_labels = {
                 'No_Recorded_Data_Day': 'No recorded data',
@@ -928,7 +930,7 @@ elif uploaded_files:
                     'Exclusion_Reason': st.column_config.TextColumn('Exclusion reason (optional)', width='large'),
                 }
             )
-            with st.expander("Full red flag reasons (not truncated)", expanded=True):
+            with st.expander("Red Flag Summary", expanded=True):
                 flagged = review.loc[review['Flag_Reasons'].ne('')]
                 if flagged.empty:
                     st.write("No dates meet the current red flag criteria.")

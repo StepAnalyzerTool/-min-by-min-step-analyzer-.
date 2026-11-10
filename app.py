@@ -70,12 +70,21 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     The app will then process the selected dates. Download your results using the buttons
     that appear when processing is complete.
     
+    Missing minutes are exported as **NA** (no record in the source file), for both
+    JSON and CSV inputs. Explicit recorded zeros remain **0**. Missing records do
+    not establish inactivity or nonwear. Totals and cadence/intensity minutes use
+    recorded values only; recorded/missing minute counts show how much of each
+    period is represented. A period with no records has NA activity measures.
+    Zero-step intervals include only explicit zeros and are interrupted by NA.
+    Step-positive minutes are recorded minutes with more than zero steps.
+    Step-only records are not used to estimate wear time.
+
     Four output files are provided:
     - 📄 **Daily Summary (CSV):** Total steps; minutes in each of the cadence bands; and MPA, VPA, and total MVPA minutes per calendar day
     - 📄 **Minute-by-Minute Log (CSV):** A complete chronological record of the total steps recorded in each minute
     - 📊 **Hourly Steps Summary (CSV):** Total steps recorded in each hour of the day
-    - 🚩 **Red Flag Summary (CSV):** Daily and daypart steps, active minutes,
-      plausible wear minutes, activity span, prolonged zero-step diagnostics,
+    - 🚩 **Red Flag Summary (CSV):** Daily and daypart steps, step-positive minutes,
+      recorded and missing minutes, activity span, recorded zero-step diagnostics,
       and exploratory data-coverage indicators
     
     ---
@@ -227,9 +236,7 @@ def build_red_flag_summary(part_df, participant_id):
     )
     red_flag_df['Active_Minute'] = red_flag_df['Steps'].gt(0).astype(int)
 
-    # Modified step-based nonwear proxy: every step-positive minute interrupts
-    # a run. Only uninterrupted zero-step runs of >=90 consecutive minutes are
-    # classified as prolonged zero-step time.
+    # Only explicit zeros form zero-step runs. Missing minutes break runs.
     zero_step = red_flag_df['Steps'].eq(0)
     consecutive_minute = red_flag_df.index.to_series().diff().eq(pd.Timedelta(minutes=1))
     run_start = (~zero_step) | (~consecutive_minute)
@@ -240,7 +247,8 @@ def build_red_flag_summary(part_df, participant_id):
     red_flag_df['Prolonged_Zero_Step'] = (
         zero_step & zero_run_lengths.ge(90)
     ).astype(int)
-    red_flag_df['Plausible_Wear_Minute'] = 1 - red_flag_df['Prolonged_Zero_Step']
+    red_flag_df['Recorded_Minute'] = red_flag_df['Steps'].notna().astype(int)
+    red_flag_df['Missing_Minute'] = red_flag_df['Steps'].isna().astype(int)
 
     dates = sorted(red_flag_df['Date'].unique())
     rows = []
@@ -248,16 +256,15 @@ def build_red_flag_summary(part_df, participant_id):
         day_df = red_flag_df[red_flag_df['Date'] == date_value]
         steps_by_part = (
             day_df.groupby('Daypart', observed=False)['Steps']
-            .sum().reindex(DAYPARTS, fill_value=0).astype(int)
+            .sum(min_count=1).reindex(DAYPARTS)
         )
         active_by_part = (
             day_df.groupby('Daypart', observed=False)['Active_Minute']
             .sum().reindex(DAYPARTS, fill_value=0).astype(int)
         )
-        wear_by_part = (
-            day_df.groupby('Daypart', observed=False)['Plausible_Wear_Minute']
-            .sum().reindex(DAYPARTS, fill_value=0).astype(int)
-        )
+        recorded_by_part = day_df.groupby('Daypart', observed=False)['Recorded_Minute'].sum().reindex(DAYPARTS, fill_value=0)
+        missing_by_part = day_df.groupby('Daypart', observed=False)['Missing_Minute'].sum().reindex(DAYPARTS, fill_value=0)
+        active_by_part = active_by_part.where(recorded_by_part.gt(0))
         active_rows = day_df[day_df['Steps'] > 0]
         if active_rows.empty:
             activity_span_label = ""
@@ -272,11 +279,13 @@ def build_red_flag_summary(part_df, participant_id):
                 (last_active - first_active).total_seconds() // 60
             )
 
-        total_steps = int(steps_by_part.sum())
-        total_active = int(active_by_part.sum())
-        total_wear = int(wear_by_part.sum())
+        total_recorded = int(recorded_by_part.sum())
+        total_missing = int(missing_by_part.sum())
+        total_steps = day_df['Steps'].sum(min_count=1)
+        total_active = active_by_part.sum(min_count=1)
         active_dayparts = int((active_by_part > 0).sum())
-        zero_data_day = total_steps == 0
+        no_records_day = total_recorded == 0
+        zero_steps_day = total_steps == 0 if total_recorded else None
 
         zero_rows = day_df.loc[
             day_df['Zero_Step_Run_ID'].notna(),
@@ -297,19 +306,18 @@ def build_red_flag_summary(part_df, participant_id):
             ].nunique()
         )
 
-        red_flag_total_steps = total_steps < 1000
-        red_flag_one_daypart = active_dayparts == 1
+        red_flag_total_steps = bool(total_steps < 1000) if total_recorded else None
+        red_flag_one_daypart = active_dayparts == 1 if total_recorded else None
         red_flag_short_span = (
             activity_span_minutes is not None
             and activity_span_minutes < 360
         )
-        red_flag_low_wear = total_wear < 600
         red_flag_values = [
-            zero_data_day,
+            no_records_day,
+            zero_steps_day,
             red_flag_total_steps,
             red_flag_one_daypart,
             red_flag_short_span,
-            red_flag_low_wear,
         ]
 
         rows.append({
@@ -317,30 +325,30 @@ def build_red_flag_summary(part_df, participant_id):
             "Day": day_number,
             "Date": date_value,
             "Total_Steps": total_steps,
-            **{f"{daypart}_Steps": int(steps_by_part[daypart]) for daypart in DAYPARTS},
-            "Total_Active_Minutes": total_active,
+            **{f"{daypart}_Steps": steps_by_part[daypart] for daypart in DAYPARTS},
+            "Total_Step_Positive_Minutes": total_active,
             **{
-                f"{daypart}_Active_Minutes": int(active_by_part[daypart])
+                f"{daypart}_Step_Positive_Minutes": active_by_part[daypart]
                 for daypart in DAYPARTS
             },
-            "Total_Plausible_Wear_Minutes": total_wear,
-            **{
-                f"{daypart}_Plausible_Wear_Minutes": int(wear_by_part[daypart])
-                for daypart in DAYPARTS
-            },
+            "Expected_Minutes": len(day_df),
+            "Recorded_Minutes": total_recorded,
+            "Missing_Minutes": total_missing,
+            **{f"{daypart}_Recorded_Minutes": int(recorded_by_part[daypart]) for daypart in DAYPARTS},
+            **{f"{daypart}_Missing_Minutes": int(missing_by_part[daypart]) for daypart in DAYPARTS},
             "First_Last_Step_Positive_Time": activity_span_label,
             "Activity_Span_Minutes": activity_span_minutes,
-            "Number_of_Active_Dayparts": active_dayparts,
-            "Longest_Zero_Step_Interval_Minutes": longest_zero_step_interval,
+            "Number_of_Active_Dayparts": active_dayparts if total_recorded else None,
+            "Longest_Zero_Step_Interval_Minutes": longest_zero_step_interval if total_recorded else None,
             "Number_of_Zero_Step_Intervals_90_Minutes_or_Longer": (
-                prolonged_zero_step_intervals
+                prolonged_zero_step_intervals if total_recorded else None
             ),
-            "Zero_Data_Day": zero_data_day,
+            "No_Recorded_Data_Day": no_records_day,
+            "Recorded_Zero_Steps_Day": zero_steps_day,
             "Red_Flag_Total_Steps_Under_1000": red_flag_total_steps,
             "Red_Flag_Activity_In_Only_One_Daypart": red_flag_one_daypart,
             "Red_Flag_Activity_Span_Under_6_Hours": red_flag_short_span,
-            "Red_Flag_Plausible_Wear_Under_600_Minutes": red_flag_low_wear,
-            "Number_of_Red_Flags": sum(red_flag_values),
+            "Number_of_Red_Flags": sum(bool(flag) for flag in red_flag_values if flag is not None),
             "Any_Red_Flag": any(red_flag_values),
         })
 
@@ -351,7 +359,7 @@ def build_hourly_steps_summary(part_df):
     """Build one CSV row per date with total steps in each labeled hour."""
     hourly_totals = (
         part_df.groupby(["Participant_ID", "Date", "Hour"], as_index=False)["Steps"]
-        .sum()
+        .sum(min_count=1)
         .rename(columns={"Steps": "Total_Steps"})
     )
     hourly_totals["Hour_Label"] = hourly_totals["Hour"].map(
@@ -363,11 +371,17 @@ def build_hourly_steps_summary(part_df):
             columns="Hour_Label",
             values="Total_Steps"
         )
-        .reindex(columns=hour_labels, fill_value=0)
-        .fillna(0)
-        .astype(int)
+        .reindex(columns=hour_labels)
         .reset_index()
     )
+    coverage = part_df.groupby(["Participant_ID", "Date", "Hour"])["Steps"].agg(
+        Recorded_Minutes="count", Expected_Minutes="size"
+    )
+    coverage["Missing_Minutes"] = coverage["Expected_Minutes"] - coverage["Recorded_Minutes"]
+    for metric in ["Recorded_Minutes", "Missing_Minutes"]:
+        wide = coverage[metric].unstack("Hour").reindex(columns=range(24), fill_value=0).fillna(0).astype(int)
+        wide.columns = [f"{hour_labels[hour]}_{metric}" for hour in range(24)]
+        hourly_steps_summary = hourly_steps_summary.merge(wide.reset_index(), on=["Participant_ID", "Date"])
     hourly_steps_summary.columns.name = None
     return hourly_steps_summary.sort_values("Date")
 
@@ -447,13 +461,10 @@ elif uploaded_files:
             selected_df = df.iloc[0:0]
 
         if valid_date_range and selected_df.empty:
-            st.error("❌ No step records were found within the selected date range.")
+            st.warning("No source records occur in this range. Outputs will mark every minute as NA.")
 
         if not date_range_confirmed:
             st.info("Confirm the analysis date range to generate the four output files.")
-            st.stop()
-
-        if selected_df.empty:
             st.stop()
 
         df = selected_df
@@ -462,7 +473,7 @@ elif uploaded_files:
             f"{analysis_end_date:%B %d, %Y}..."
         )
 
-        unique_dates = df.index.normalize().unique()
+        unique_dates = pd.date_range(analysis_start_date, analysis_end_date, freq="D", tz=timezone)
         participant_full_timeseries = []
 
         # 2. RECONSTRUCT CONTINUOUS TIMELINES PER DAY
@@ -479,7 +490,7 @@ elif uploaded_files:
 
             day_data = df[df.index.normalize() == date]
             day_data = day_data[~day_data.index.duplicated(keep='first')]
-            day_full = day_data.reindex(daily_index, fill_value=0)
+            day_full = day_data.reindex(daily_index)
 
             day_full['Participant_ID'] = manual_participant_id
             day_full['Date'] = date.date()
@@ -511,7 +522,7 @@ elif uploaded_files:
         ]
 
         part_df['Cadence_Band'] = pd.cut(part_df['Steps'], bins=bins, labels=labels)
-        part_df['Intensity_Category'] = 'Below MPA threshold'
+        part_df['Intensity_Category'] = pd.Series('Below MPA threshold', index=part_df.index).where(part_df['Steps'].notna())
         part_df.loc[
             (part_df['Steps'] >= mpa) & (part_df['Steps'] < vpa),
             'Intensity_Category'
@@ -533,10 +544,19 @@ elif uploaded_files:
         summary['Total_MPA_Minutes'] = daily_intensity['Total_MPA_Minutes']
         summary['Total_VPA_Minutes'] = daily_intensity['Total_VPA_Minutes']
         summary['Total_MVPA_Minutes'] = summary['Total_MPA_Minutes'] + summary['Total_VPA_Minutes']
-        summary['Total_Daily_Steps'] = part_df.groupby(['Participant_ID', 'Date'])['Steps'].sum()
+        summary['Total_Daily_Steps'] = part_df.groupby(['Participant_ID', 'Date'])['Steps'].sum(min_count=1)
+        coverage = part_df.groupby(['Participant_ID', 'Date'])['Steps'].agg(
+            Expected_Minutes='size', Recorded_Minutes='count'
+        )
+        coverage['Missing_Minutes'] = coverage['Expected_Minutes'] - coverage['Recorded_Minutes']
+        summary.loc[coverage['Recorded_Minutes'].eq(0), :] = float('nan')
+        summary = summary.join(coverage)
 
         column_order = [
             'Total_Daily_Steps',
+            'Expected_Minutes',
+            'Recorded_Minutes',
+            'Missing_Minutes',
             'Total_MPA_Minutes',
             'Total_VPA_Minutes',
             'Total_MVPA_Minutes',
@@ -568,7 +588,7 @@ elif uploaded_files:
         )
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            csv_summary = final_summary.to_csv(index=False).encode('utf-8')
+            csv_summary = final_summary.to_csv(index=False, na_rep="NA").encode('utf-8')
             st.download_button(
                 "📥 Download Daily Summaries (CSV)",
                 data=csv_summary,
@@ -576,7 +596,7 @@ elif uploaded_files:
                 mime="text/csv"
             )
         with col2:
-            csv_min_by_min = final_min_by_min.to_csv(index=False).encode('utf-8')
+            csv_min_by_min = final_min_by_min.to_csv(index=False, na_rep="NA").encode('utf-8')
             st.download_button(
                 "📥 Download Minute-by-Minute Log (CSV)",
                 data=csv_min_by_min,
@@ -584,7 +604,7 @@ elif uploaded_files:
                 mime="text/csv"
             )
         with col3:
-            csv_hourly = hourly_steps_summary.to_csv(index=False).encode('utf-8-sig')
+            csv_hourly = hourly_steps_summary.to_csv(index=False, na_rep="NA").encode('utf-8-sig')
             st.download_button(
                 "📊 Download Hourly Steps Summary (CSV)",
                 data=csv_hourly,
@@ -592,7 +612,7 @@ elif uploaded_files:
                 mime="text/csv"
             )
         with col4:
-            csv_red_flags = red_flag_summary.to_csv(index=False).encode('utf-8-sig')
+            csv_red_flags = red_flag_summary.to_csv(index=False, na_rep="NA").encode('utf-8-sig')
             st.download_button(
                 "🚩 Download Red Flag Summary (CSV)",
                 data=csv_red_flags,

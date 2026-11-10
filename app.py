@@ -170,7 +170,7 @@ with st.expander("Step 4: Select the Analysis Dates", expanded=False):
 with st.expander("Step 5: Generate the Summary Files", expanded=False):
     st.markdown("""
 - Click **Yes — prepare downloadable files** when you are ready.
-- Five download buttons appear, one per row, each with an expandable explanation of its calculations and contents.
+- Five download buttons appear, one per row, labeled with the full filename. Open **About** beside a button for its calculations and contents.
 - If you change settings or exclusions, prepare the files again before downloading.
 
 **Available CSV files**
@@ -1163,14 +1163,19 @@ days. If no included day has a value, the mean is NA.
 """),
         ]
         for title, frame, suffix, explanation in downloads:
-            st.download_button(
-                f"📥 Download {title} (CSV)",
-                data=frame.to_csv(index=False, na_rep="NA").encode('utf-8-sig'),
-                file_name=f"{manual_participant_id}_{suffix}.csv", mime="text/csv",
-                use_container_width=True
-            )
-            with st.expander(f"About {title}: calculations and output details"):
-                st.markdown(explanation)
+            download_filename = f"{manual_participant_id}_{suffix}.csv"
+            download_col, about_col = st.columns([3, 2])
+            with download_col:
+                st.download_button(
+                    f"📥 Download {download_filename}",
+                    data=frame.to_csv(index=False, na_rep="NA").encode('utf-8-sig'),
+                    file_name=download_filename, mime="text/csv",
+                    use_container_width=True
+                )
+            with about_col:
+                with st.expander("About"):
+                    st.markdown(f"**{title}**")
+                    st.markdown(explanation)
 
     else:
         st.error("❌ No valid Fitbit data found in the uploaded files. Please check your files and try again.")

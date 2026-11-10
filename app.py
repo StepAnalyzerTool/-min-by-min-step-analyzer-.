@@ -1128,10 +1128,8 @@ One row per minute on each included day, in time order.
 
 - **Participant_ID, Date, and Time:** Identifies the participant and the minute in your selected timezone.
 - **Steps:** Steps recorded during that minute.
-- **0:** The source recorded zero steps.
-- **NA:** The source had no record for that minute.
 
-These minute-level values are used to calculate the daily, hourly, and red-flag summaries. Participant averages are calculated from the daily summaries. When daylight-saving adjustments apply, a skipped hour is absent and a repeated hour appears twice.
+**Notes:** **0** means the source recorded zero steps. **NA** means the source had no record for that minute. These minute-level values are used to calculate the daily, hourly, and red-flag summaries. When daylight-saving adjustments apply, a skipped hour is absent and a repeated hour appears twice.
 """),
             ("Daily Summary", final_summary, "Daily_Summaries", """
 One row per included day.

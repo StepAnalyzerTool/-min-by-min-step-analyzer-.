@@ -890,6 +890,13 @@ elif uploaded_files:
                 st.info("Uncheck Include all dates to edit exclusions and reasons.")
             with st.expander("About red flags and exclusions", expanded=False):
                 st.markdown("""
+**How to use the indicators**
+
+- Red Flags suggest days to review; they do not establish nonwear or automatically exclude days.
+- Apply and note your study's exclusion/inclusion criteria.
+- Missing minutes do not establish inactivity or nonwear.
+- The Red Flag Summary file retains every date and any exclusion reasons. Excluded dates are removed from the other analysis exports and participant averages.
+
 **How red flags are calculated**
 
 Flags are calculated for each calendar day in your selected timezone, using recorded step values.
@@ -929,12 +936,6 @@ Flags are calculated for each calendar day in your selected timezone, using reco
 - **Included_in_Participant_Summary** and **Exclusion_Reason:** Your inclusion decision and optional reason. The file retains all dates.
 - **Analysis_Timezone** and **Daylight_Saving_Observed:** Your selected time settings.
 
-**How to use the indicators**
-
-- Flags suggest days to review; they do not establish nonwear or automatically exclude days. Apply and report your study's inclusion criteria.
-- Missing minutes do not establish inactivity or nonwear.
-- **Include all dates** overrides individual exclusions.
-- The Red Flag Summary retains every date and any exclusion reasons. Excluded dates are removed from the other analysis exports and participant averages.
                 """)
             review = red_flag_summary.copy()
             flag_labels = {

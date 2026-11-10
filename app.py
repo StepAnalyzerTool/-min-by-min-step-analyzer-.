@@ -3,10 +3,54 @@ import pandas as pd
 import json
 import pytz
 import hashlib
+from html import escape
 from datetime import datetime
 from collections import Counter
 
 st.set_page_config(page_title="The FITS Tool", layout="wide")
+st.markdown("""
+<style>
+.fits-complete {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    min-height: 3.5rem;
+    box-sizing: border-box;
+    border: 1px solid #B8DCD8;
+    border-radius: 0.65rem;
+    background: #EDF8F6;
+    color: #17324D;
+    font-size: 1rem;
+    line-height: 1.5;
+}
+.fits-complete-check {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 1.4rem;
+    height: 1.4rem;
+    border-radius: 0.3rem;
+    background: #087F8C;
+    color: #FFFFFF;
+    font-weight: 700;
+    line-height: 1;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
+def show_completion(label):
+    """Consistent, accessible completion status for each finished step."""
+    st.markdown(
+        '<div class="fits-complete" role="status">'
+        '<span class="fits-complete-check" aria-hidden="true">✓</span>'
+        '<span>' + escape(label) + '</span></div>',
+        unsafe_allow_html=True
+    )
+
+
 st.title("The FITS Tool")
 st.subheader("Fitbit Intensity, Timing, and Steps Tool")
 
@@ -624,7 +668,7 @@ elif uploaded_files:
         accepted_files.append({'File': file.name, 'Step records': len(temp_df)})
 
     if accepted_files and not rejected_files:
-        st.success("✅ Files Reviewed")
+        show_completion("Files Reviewed")
 
     if rejected_files:
         st.subheader("Upload Review")
@@ -670,8 +714,8 @@ elif uploaded_files:
             analysis_end_date = confirmed_dates['end']
             confirmed_dates_col, change_dates_col = st.columns([5, 1])
             with confirmed_dates_col:
-                st.success(
-                    f"✅ Confirmed dates: {analysis_start_date:%B %d, %Y} through {analysis_end_date:%B %d, %Y}"
+                show_completion(
+                    f"Confirmed dates: {analysis_start_date:%B %d, %Y} through {analysis_end_date:%B %d, %Y}"
                 )
             with change_dates_col:
                 change_dates_clicked = st.button(
@@ -880,8 +924,7 @@ elif uploaded_files:
             review_choice = finalized_days['choice']
             days_done_col, change_days_col = st.columns([5, 1])
             with days_done_col:
-                st.checkbox("Individual days selected", value=True, disabled=True,
-                            key=f"days_selected_{review_context}_{day_revision}")
+                show_completion("Individual days selected")
             with change_days_col:
                 if st.button("Change days", key=f"change_days_{review_context}_{day_revision}"):
                     st.session_state['day_selection_draft'] = finalized_days

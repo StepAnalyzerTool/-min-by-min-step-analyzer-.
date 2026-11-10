@@ -1144,7 +1144,7 @@ One row per included day.
   **Formula:** Peak N-minute cadence = sum of the N highest minute counts ÷ N.  
   **Note:** A peak is NA if fewer than N recorded minutes are available.
 
-Recorded zeros count; missing minutes (NA) do not enter activity calculations. A day with no records has NA activity measures.
+Recorded zeros are retained; missing minutes (NA) are excluded from activity calculations. A day with no records has NA activity measures.
 """),
             ("Minute-by-Minute Log", final_min_by_min, "Min_by_Min", """
 One row per minute on each included day, in time order.

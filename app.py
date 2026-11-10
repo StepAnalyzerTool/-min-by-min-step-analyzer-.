@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import json
 import pytz
+import hashlib
 
 st.set_page_config(page_title="The FITS Tool", layout="wide")
 st.title("The FITS Tool")
@@ -65,10 +66,20 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     Upload JSON or CSV step files for the participant using **E. Data Upload** in the sidebar.
     After the files are read and converted to local time, the app will display the earliest
     and latest available dates. Select the intended analysis start and end dates, then confirm
-    the range. The same selected date range will be applied to all four output files.
+    the range. All daily and detailed exports retain the full selected date range.
 
-    The app will then process the selected dates. Download your results using the buttons
-    that appear when processing is complete.
+    The **Red Flag Summary and Day Selection** appears first. Leave **Include all dates**
+    checked, or uncheck it and check **Exclude from averages** beside individual dates.
+    You can enter a reason, including participant-reported nonwear, a broken or lost
+    Fitbit, or another study criterion. Flags are prompts for review, not automatic
+    exclusions or evidence of nonwear. Define and report your study's inclusion criteria.
+
+    Exclusions affect only the new **Participant Averages** file. Daily and detailed
+    exports retain every date; the Daily and Red Flag summaries record inclusion
+    decisions and reasons. Averages give each included day equal weight and exclude
+    NA separately for each measure. Each mean reports its contributing-day count;
+    recorded zeros count, and missing values are never replaced with zero.
+    Download the five output files below the review table.
     
     Missing minutes are exported as **NA** (no record in the source file), for both
     JSON and CSV inputs. Explicit recorded zeros remain **0**. Missing records do
@@ -90,7 +101,8 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     (Migueles, *stepmetrics: Calculate Step and Cadence Metrics from Wearable Data*,
     [doi:10.5281/zenodo.7858094](https://doi.org/10.5281/zenodo.7858094)).
 
-    Four output files are provided:
+    Five output files are provided:
+    - 📄 **Participant Averages (CSV):** Mean daily measures across researcher-selected dates, with contributing-day counts and selection totals
     - 📄 **Daily Summary (CSV):** Total steps; minutes and steps in each cadence band; step-positive minutes; MPA, VPA, and total MVPA minutes and steps; and peak 1-, 30-, and 60-minute cadence per calendar day
     - 📄 **Minute-by-Minute Log (CSV):** A complete chronological record of the total steps recorded in each minute
     - 📊 **Hourly Steps Summary (CSV):** Total steps recorded in each hour of the day
@@ -135,6 +147,28 @@ def peak_cadence(values, minutes):
     if len(recorded) < minutes:
         return float('nan')
     return recorded.nlargest(minutes).mean()
+
+
+def build_participant_averages(daily, metric_columns, participant_id, timezone, start, end):
+    """Equal-weight daily means; NA omitted separately for each numeric measure."""
+    included = daily.loc[daily['Included_in_Participant_Summary']]
+    rows = []
+    for metric in metric_columns:
+        values = included[metric]
+        rows.append({
+            'Participant_ID': participant_id,
+            'Timezone': timezone,
+            'Analysis_Start_Date': start,
+            'Analysis_End_Date': end,
+            'Days_In_Date_Range': len(daily),
+            'Included_Days': len(included),
+            'Excluded_Days': len(daily) - len(included),
+            'Measure': metric,
+            'Mean_Per_Day': values.mean(),
+            'Contributing_Days': int(values.notna().sum()),
+            'Included_Days_With_NA': int(values.isna().sum()),
+        })
+    return pd.DataFrame(rows)
 
 
 def read_step_file(file):
@@ -484,7 +518,7 @@ elif uploaded_files:
             st.warning("No source records occur in this range. Outputs will mark every minute as NA.")
 
         if not date_range_confirmed:
-            st.info("Confirm the analysis date range to generate the four output files.")
+            st.info("Confirm the analysis date range to review days and generate outputs.")
             st.stop()
 
         df = selected_df
@@ -624,13 +658,98 @@ elif uploaded_files:
         hourly_steps_summary = build_hourly_steps_summary(part_df)
         red_flag_summary = build_red_flag_summary(part_df, manual_participant_id)
 
-        # 6. DISPLAY RESULTS AND DOWNLOAD BUTTONS
+        # 6. REVIEW DAYS BEFORE DOWNLOADS. No flag automatically excludes a day.
+        st.subheader("Red Flag Summary and Day Selection")
+        st.write(
+            "Review the daily indicators below before calculating participant averages. "
+            "Flags do not establish nonwear or make a day invalid. You may exclude dates "
+            "for a flag or any study-specific reason, such as reported nonwear, a broken "
+            "Fitbit, or a lost device."
+        )
+        # Reset decisions for different input records, participant, timezone, dates or thresholds.
+        review_context = hashlib.sha256(
+            pd.util.hash_pandas_object(df[['value']], index=True).values.tobytes()
+            + repr((manual_participant_id, timezone, analysis_start_date, analysis_end_date,
+                    mpa, vpa, bins)).encode('utf-8')
+        ).hexdigest()
+        include_all = st.checkbox(
+            "Include all dates from the analysis start date through the end date in participant averages",
+            value=True, key=f"include_all_{review_context}"
+        )
+        st.caption(
+            "To exclude individual days, uncheck Include all dates, then check Exclude from averages. "
+            "An exclusion reason is optional. The other four exports retain every date. "
+            "Missing minutes are not evidence of inactivity or nonwear."
+        )
+        review = red_flag_summary.copy()
+        flag_labels = {
+            'No_Recorded_Data_Day': 'No recorded data',
+            'Recorded_Zero_Steps_Day': 'Recorded steps total zero',
+            'Red_Flag_Total_Steps_Under_1000': 'Recorded steps below 1,000',
+            'Red_Flag_Activity_In_Only_One_Daypart': 'Steps in only one daypart',
+            'Red_Flag_Activity_Span_Under_6_Hours': 'First-to-last positive minute span below 6 hours',
+        }
+        review['Flag_Reasons'] = review.apply(
+            lambda row: '; '.join(label for column, label in flag_labels.items()
+                                  if pd.notna(row[column]) and bool(row[column])), axis=1
+        )
+        review.insert(0, 'Exclude_from_Averages', False)
+        review.insert(1, 'Exclusion_Reason', '')
+        leading_columns = [
+            'Exclude_from_Averages', 'Exclusion_Reason', 'Date', 'Flag_Reasons',
+            'Total_Steps', 'Recorded_Minutes', 'Missing_Minutes',
+            'Total_Step_Positive_Minutes', 'Number_of_Red_Flags',
+        ]
+        review = review[leading_columns + [c for c in review.columns if c not in leading_columns]]
+        edited_review = st.data_editor(
+            review, hide_index=True, use_container_width=True,
+            key=f"day_review_{review_context}_{include_all}",
+            disabled=True if include_all else [
+                c for c in review.columns if c not in ('Exclude_from_Averages', 'Exclusion_Reason')
+            ],
+            column_config={
+                'Exclude_from_Averages': st.column_config.CheckboxColumn('Exclude from averages'),
+                'Exclusion_Reason': st.column_config.TextColumn('Exclusion reason (optional)'),
+            }
+        )
+        decisions = edited_review[['Date', 'Exclude_from_Averages', 'Exclusion_Reason']].copy()
+        if include_all:
+            decisions['Exclude_from_Averages'] = False
+        decisions['Included_in_Participant_Summary'] = ~decisions['Exclude_from_Averages'].fillna(False).astype(bool)
+        decisions['Exclusion_Reason'] = decisions['Exclusion_Reason'].fillna('').where(
+            ~decisions['Included_in_Participant_Summary'], ''
+        )
+        decisions = decisions[['Date', 'Included_in_Participant_Summary', 'Exclusion_Reason']]
+        final_summary = final_summary.merge(decisions, on='Date', validate='one_to_one')
+        red_flag_summary = red_flag_summary.merge(decisions, on='Date', validate='one_to_one')
+        participant_averages = build_participant_averages(
+            final_summary, column_order, manual_participant_id, timezone,
+            analysis_start_date, analysis_end_date
+        )
+        included_count = int(final_summary['Included_in_Participant_Summary'].sum())
+        st.caption(
+            f"{included_count} included day(s); {len(final_summary) - included_count} excluded day(s). "
+            "Each mean uses only included days with a non-NA value for that measure. "
+            "Recorded zeros count. Averages describe recorded data; they do not estimate missing activity."
+        )
+        if included_count == 0:
+            st.warning("No dates are included. Participant means are NA and contributing-day counts are zero.")
+        st.subheader("Participant Averages")
+        st.dataframe(
+            participant_averages[['Measure', 'Mean_Per_Day', 'Contributing_Days', 'Included_Days_With_NA']],
+            hide_index=True, use_container_width=True
+        )
+        st.download_button(
+            "📥 Download Participant Averages (CSV)",
+            data=participant_averages.to_csv(index=False, na_rep="NA").encode('utf-8-sig'),
+            file_name=f"{manual_participant_id}_Participant_Averages.csv", mime="text/csv"
+        )
         st.success("✅ Analysis Complete!")
         st.caption(
             f"Source timestamps were interpreted as UTC and converted to {timezone} "
             "before aggregation. Date-specific daylight-saving offsets were applied automatically. "
-            f"All outputs include {analysis_start_date:%B %d, %Y} through "
-            f"{analysis_end_date:%B %d, %Y}."
+            f"The following four exports retain all dates from {analysis_start_date:%B %d, %Y} through "
+            f"{analysis_end_date:%B %d, %Y}; exclusions affect only Participant Averages."
         )
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -668,3 +787,4 @@ elif uploaded_files:
 
     else:
         st.error("❌ No valid Fitbit data found in the uploaded files. Please check your files and try again.")
+

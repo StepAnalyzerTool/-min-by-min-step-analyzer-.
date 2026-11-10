@@ -68,8 +68,8 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     and latest available dates. Select the intended analysis start and end dates, then confirm
     the range. All daily and detailed exports retain the full selected date range.
 
-    The **Red Flag Summary and Day Selection** appears first. Leave **Include all dates**
-    checked, or uncheck it and check **Exclude from averages** beside individual dates.
+    The **Red Flag Summary and Day Selection** appears first. Check **Exclude from averages** beside individual dates, or select **Include all dates**
+    to use the entire date range.
     You can enter a reason, including participant-reported nonwear, a broken or lost
     Fitbit, or another study criterion. Flags are prompts for review, not automatic
     exclusions or evidence of nonwear. Define and report your study's inclusion criteria.
@@ -674,10 +674,14 @@ elif uploaded_files:
         ).hexdigest()
         include_all = st.checkbox(
             "Include all dates from the analysis start date through the end date in participant averages",
-            value=True, key=f"include_all_{review_context}"
+            value=False, key=f"include_all_v2_{review_context}"
         )
+        if include_all:
+            st.info("Individual exclusions and notes are locked because Include all dates is checked. Uncheck it to edit the table.")
+        else:
+            st.info("Check Exclude from averages beside a date to exclude it. Double-click its Exclusion reason cell to type a note, then press Enter. Dates remain included unless you check their exclusion boxes.")
         st.caption(
-            "To exclude individual days, uncheck Include all dates, then check Exclude from averages. "
+            "Include all dates overrides individual exclusions. "
             "An exclusion reason is optional. The other four exports retain every date. "
             "Missing minutes are not evidence of inactivity or nonwear."
         )
@@ -703,7 +707,7 @@ elif uploaded_files:
         review = review[leading_columns + [c for c in review.columns if c not in leading_columns]]
         edited_review = st.data_editor(
             review, hide_index=True, use_container_width=True,
-            key=f"day_review_{review_context}_{include_all}",
+            key=f"day_review_v2_{review_context}_{include_all}",
             disabled=True if include_all else [
                 c for c in review.columns if c not in ('Exclude_from_Averages', 'Exclusion_Reason')
             ],

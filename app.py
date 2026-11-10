@@ -93,7 +93,7 @@ with st.expander("📋 How to Use This Tool", expanded=False):
         """)
         with st.expander("How timezone selections affect data analysis", expanded=False):
             st.markdown("""
-    Timezone conversion can move records to a different date or hour, changing daily totals, cadence summaries, flags and participant averages.
+    Timezone conversion can move records to a different date or hour, changing daily totals, cadence summaries, flags and participant summaries.
 
     - **UTC:** Keeps the original UTC dates and times, without daylight-saving adjustments.
     - **Daylight saving selected:** Uses the chosen location's historical timezone rules for each
@@ -157,7 +157,7 @@ with st.expander("📋 How to Use This Tool", expanded=False):
     - Select and confirm your analysis start and end dates. Use **Change dates** to revise them.
     - Choose whether to **review red flags and/or exclude individual days**. If Yes, check **Exclude** beside any dates you want to omit, optionally enter a reason, then click **Finalize days**. Choosing **Include all dates** or **No** completes day selection immediately.
     - Completed selections collapse into **Individual days selected**. Use **Change days** to reopen your choices.
-    - Excluded dates are removed from the daily, minute-level, and hourly files and from participant averages. The **Red Flag Summary** retains every date.
+    - Excluded dates are removed from the daily, minute-level, and hourly files and from participant summaries. The **Red Flag Summary** retains every date.
         """)
         with st.expander("More about dates, red flags, and exclusions", expanded=False):
             st.markdown("""
@@ -171,7 +171,7 @@ with st.expander("📋 How to Use This Tool", expanded=False):
     with st.expander("Step 5: Generate the Summary Files", expanded=False):
         st.markdown("""
     - Click **Yes — prepare downloadable files** when you are ready.
-    - Five download buttons appear, one per row, labeled with the full filename. The **About** dropdowns below the download buttons explain each file's calculations and contents.
+    - Six download buttons appear, one per row, labeled with the full filename. The **About** dropdowns below the download buttons explain each file's calculations and contents.
     - If you change settings or exclusions, prepare the files again before downloading.
 
     **Available CSV files**
@@ -180,7 +180,8 @@ with st.expander("📋 How to Use This Tool", expanded=False):
     - **Minute-by-Minute Log:** Recorded steps and missing minutes throughout the selected date range.
     - **Hourly Steps Summary:** Recorded step totals and coverage counts for each hour.
     - **Red Flag Summary:** Daily and daypart measures, coverage indicators, flags, and exclusion reasons.
-    - **Participant Averages:** Mean daily measures across included dates, with contributing-day counts.
+    - **Participant Summary:** Daily means and standard deviations, cadence-band step percentages, and contributing-day counts.
+    - **Hourly Participant Summary:** Mean steps and standard deviations for each clock hour across included days.
         """)
         with st.expander("Calculation details and missing data", expanded=False):
             st.markdown("""
@@ -241,7 +242,7 @@ def peak_cadence(values, minutes):
     return recorded.nlargest(minutes).mean()
 
 
-def build_participant_averages(daily, metric_columns, participant_id, timezone, start, end):
+def build_participant_summary(daily, metric_columns, participant_id, timezone, start, end):
     """One participant row; equal-weight daily means with measure-specific counts."""
     included = daily.loc[daily['Included_in_Participant_Summary']]
     row = {
@@ -261,14 +262,48 @@ def build_participant_averages(daily, metric_columns, participant_id, timezone, 
             measure_name = metric[len('Total_'):]
         elif metric.startswith('Steps: '):
             measure_name = 'Steps_' + metric[len('Steps: '):]
+        elif metric == 'Mean_Active_Minute_Cadence_spm':
+            measure_name = 'Active_Minute_Cadence_spm'
         elif metric.startswith('Peak_'):
             measure_name = metric
         else:
             measure_name = 'Minutes_' + metric
         row[f'Mean_Daily_{measure_name}'] = values.mean()
+        row[f'SD_Daily_{measure_name}'] = values.std(ddof=1)
         row[f'{measure_name}_Contributing_Days'] = int(values.notna().sum())
         row[f'{measure_name}_Included_Days_With_NA'] = int(values.isna().sum())
+    total_steps = included['Total_Daily_Steps'].sum(min_count=1)
+    for metric in metric_columns:
+        if metric.startswith('Steps: '):
+            band_steps = included[metric].sum(min_count=1)
+            row[f'Percent_of_Steps_{metric[len("Steps: "):]}'] = (
+                100 * band_steps / total_steps
+                if pd.notna(total_steps) and total_steps > 0 else float('nan')
+            )
     return pd.DataFrame([row])
+
+
+
+def build_hourly_participant_summary(hourly, participant_id, timezone, start, end, days_in_range, included_days):
+    """One row per clock hour; sample SD and mean across included days with data."""
+    rows = []
+    for hour_label in hour_labels:
+        values = hourly[hour_label]
+        rows.append({
+            'Participant_ID': participant_id,
+            'Timezone': timezone,
+            'Analysis_Start_Date': start,
+            'Analysis_End_Date': end,
+            'Days_In_Date_Range': days_in_range,
+            'Included_Days': included_days,
+            'Excluded_Days': days_in_range - included_days,
+            'Hour': hour_label,
+            'Mean_Hourly_Steps': values.mean(),
+            'SD_Hourly_Steps': values.std(ddof=1),
+            'Contributing_Days': int(values.notna().sum()),
+            'Included_Days_With_NA': int(values.isna().sum()),
+        })
+    return pd.DataFrame(rows)
 
 
 def upload_error_details(error):
@@ -884,7 +919,7 @@ elif uploaded_files:
     - Red Flags suggest days to review; they do not establish nonwear or automatically exclude days.
     - Apply and note your study's exclusion/inclusion criteria.
     - Missing minutes do not establish inactivity or nonwear.
-    - The Red Flag Summary file retains every date and any exclusion reasons. Excluded dates are removed from the other analysis exports and participant averages.
+    - The Red Flag Summary file retains every date and any exclusion reasons. Excluded dates are removed from the other analysis exports and participant summaries.
 
     **How red flags are calculated**
 
@@ -900,7 +935,7 @@ elif uploaded_files:
 
     **Columns shown in the preview**
 
-    - **Exclude:** Check to remove that day from analysis outputs and participant averages.
+    - **Exclude:** Check to remove that day from analysis outputs and participant summaries.
     - **Date:** The day being reviewed.
     - **Exclusion reason (optional):** Your note explaining why you excluded the day.
     - **Red flag reasons:** The indicators triggered for that day.
@@ -1060,6 +1095,10 @@ elif uploaded_files:
         summary['Total_MVPA_Minutes'] = summary['Total_MPA_Minutes'] + summary['Total_VPA_Minutes']
         summary['Total_Weighted_MVPA_Minutes'] = summary['Total_MPA_Minutes'] + 2 * summary['Total_VPA_Minutes']
         summary['Total_Daily_Steps'] = part_df.groupby(['Participant_ID', 'Date'])['Steps'].sum(min_count=1)
+        summary['Mean_Active_Minute_Cadence_spm'] = (
+            summary['Total_Daily_Steps']
+            / summary['Total_Step_Positive_Minutes'].where(summary['Total_Step_Positive_Minutes'] > 0)
+        )
         # Step sums use the same cadence assignments as the minute counts.
         band_steps = part_df.groupby(
             ['Participant_ID', 'Date', 'Cadence_Band'], observed=False
@@ -1085,6 +1124,7 @@ elif uploaded_files:
         column_order = [
             'Total_Daily_Steps',
             'Total_Step_Positive_Minutes',
+            'Mean_Active_Minute_Cadence_spm',
             'Total_MPA_Minutes',
             'Total_MPA_Steps',
             'Total_VPA_Minutes',
@@ -1110,7 +1150,7 @@ elif uploaded_files:
         hourly_steps_summary = build_hourly_steps_summary(part_df)
 
         final_summary = final_summary.merge(decisions, on='Date', validate='one_to_one')
-        participant_averages = build_participant_averages(
+        participant_summary = build_participant_summary(
             final_summary, column_order, manual_participant_id, timezone_description,
             analysis_start_date, analysis_end_date
         )
@@ -1121,11 +1161,17 @@ elif uploaded_files:
         final_summary = final_summary.loc[final_summary['Date'].isin(included_dates)].copy()
         final_min_by_min = final_min_by_min.loc[final_min_by_min['Date'].isin(included_dates)].copy()
         hourly_steps_summary = hourly_steps_summary.loc[hourly_steps_summary['Date'].isin(included_dates)].copy()
+        hourly_participant_summary = build_hourly_participant_summary(
+            hourly_steps_summary, manual_participant_id, timezone_description,
+            analysis_start_date, analysis_end_date, len(decisions), included_count
+        )
+        participant_summary['Daylight_Saving_Observed'] = observes_dst
+        hourly_participant_summary['Daylight_Saving_Observed'] = observes_dst
         # The red-flag export remains the complete audit of dates and exclusion reasons.
         for output_frame in (final_summary, final_min_by_min, hourly_steps_summary, red_flag_summary):
             output_frame['Analysis_Timezone'] = timezone_description
             output_frame['Daylight_Saving_Observed'] = observes_dst
-        st.success("Your five analysis files are ready.")
+        st.success("Your six analysis files are ready.")
         st.caption(
             f"Dates are based on {timezone_description}. Excluded dates are retained only in the Red Flag Summary. "
             "Missing values are exported as NA."
@@ -1147,6 +1193,9 @@ One row per included day.
   **Formula:** Daily steps = sum of minute-level steps.
 - **Step-positive minutes:** Counts minutes with at least one step.  
   **Formula:** Step-positive minutes = number of minutes with steps > 0.
+- **Mean_Active_Minute_Cadence_spm:** Average steps per minute during minutes with at least one step.  
+  **Formula:** Mean active-minute cadence = daily steps ÷ step-positive minutes.  
+  **Note:** The value is NA when there are no step-positive minutes.
 - **MPA and VPA minutes:** Counts minutes meeting your moderate or vigorous activity thresholds.  
   **Formula:** MPA minutes = count of minutes with MPA threshold ≤ steps < VPA threshold. VPA minutes = count of minutes with steps ≥ VPA threshold.
 - **MVPA minutes:** Combines moderate and vigorous minutes.  
@@ -1175,6 +1224,21 @@ One row per included day, with a step total for each clock hour.
 
 **Notes:** Recorded zeros remain zero. An hour with no records has NA steps. When daylight-saving adjustments apply, the repeated fall hour is combined into one total; the skipped spring hour has NA steps and zero expected minutes.
 """),
+            ("Hourly Participant Summary", hourly_participant_summary, "Hourly_Participant_Summary", """
+One row per clock hour, summarizing included days.
+
+- **Participant_ID, Timezone, Analysis_Start_Date, and Analysis_End_Date:** Identifies the participant and analysis settings.
+- **Days_In_Date_Range, Included_Days, and Excluded_Days:** Reports your date selections.
+- **Hour:** The clock hour being summarized.
+- **Mean_Hourly_Steps:** Average steps during that hour across days with data.  
+  **Formula:** Mean hourly steps = sum of hourly step totals ÷ contributing days.
+- **SD_Hourly_Steps:** How much the hourly totals vary across days.  
+  **Formula:** Sample SD = square root of [sum of (hourly total − mean)² ÷ (contributing days − 1)].
+- **Contributing_Days:** Included days with data for that hour.
+- **Included_Days_With_NA:** Included days without data for that hour.
+
+**Notes:** Recorded zeros are included; NA values and excluded days are omitted. A mean is NA when no values are available; SD is NA with fewer than two values. Daylight-saving hours follow the Hourly Steps Summary: repeated hours are combined, and skipped hours are omitted from the average.
+"""),
             ("Red Flag Summary", red_flag_summary, "Red_Flag_Summary", """
 One row per selected day, including excluded days and their reasons.
 
@@ -1196,17 +1260,21 @@ One row per selected day, including excluded days and their reasons.
 
 **Notes:** Flags prompt review; they do not automatically exclude days. Zero-step periods do not add to the flag count. Missing minutes break a zero-step stretch. A stretch crossing midnight can count on both days.
 """),
-            ("Participant Averages", participant_averages, "Participant_Averages", """
-One row per participant, with a separate average for each daily measure.
+            ("Participant Summary", participant_summary, "Participant_Summary", """
+One row per participant, summarizing the included days.
 
 - **Participant_ID, Timezone, Analysis_Start_Date, and Analysis_End_Date:** Identifies the participant and analysis settings.
 - **Days_In_Date_Range, Included_Days, and Excluded_Days:** Reports your date selections.
-- **Columns beginning with Mean_Daily_:** The daily average for the measure: total steps; step-positive minutes (minutes with at least one step); MPA, VPA, and MVPA minutes; weighted MVPA minutes (MPA + 2 × VPA); MPA, VPA, and MVPA steps; minutes and steps in each of the eight cadence bands; and peak 1-, 30-, and 60-minute cadence.  
+- **Columns beginning with Mean_Daily_:** The daily average for total steps; step-positive minutes; mean active-minute cadence; MPA, VPA, and MVPA minutes; weighted MVPA minutes (MPA + 2 × VPA); MPA, VPA, and MVPA steps; minutes and steps in each cadence band; and peak 1-, 30-, and 60-minute cadence.  
   **Formula:** Mean = sum of included daily values ÷ contributing days.
-- **_Contributing_Days:** Number of days used to calculate each average.
+- **Columns beginning with SD_Daily_:** How much the daily values vary around their mean.  
+  **Formula:** Sample SD = square root of [sum of (daily value − mean)² ÷ (contributing days − 1)].
+- **_Contributing_Days:** Number of days used to calculate each mean and SD.
 - **_Included_Days_With_NA:** Number of included days with missing values for that measure.
+- **Columns beginning with Percent_of_Steps_:** Percentage of all included steps recorded in each cadence band.  
+  **Formula:** Percentage = steps in the band across included days ÷ total steps across those days × 100.
 
-**Notes:** Averages include recorded zeros but omit missing values and excluded days. If no values are available, the average is NA.
+**Notes:** Recorded zeros are included; NA values and excluded days are omitted. A mean is NA when no values are available; SD is NA with fewer than two values. Cadence-band percentages use combined step totals, not the average of daily percentages, and are NA if total steps are zero or unavailable. Mean daily active-minute cadence averages the daily cadence values, giving each contributing day equal weight.
 """),
         ]
         for title, frame, suffix, explanation in downloads:

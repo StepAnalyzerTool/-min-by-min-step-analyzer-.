@@ -1141,9 +1141,10 @@ One row per included day.
 - **Cadence bands:** Reports minutes and steps within each selected steps-per-minute range.  
   **Formula:** Band minutes = count of minutes in the band. Band steps = sum of steps in those minutes.
 - **Peak cadence:** Averages the highest 1, 30, or 60 recorded minute counts. The minutes need not be consecutive.  
-  **Formula:** Peak N-minute cadence = sum of the N highest minute counts ÷ N.
+  **Formula:** Peak N-minute cadence = sum of the N highest minute counts ÷ N.  
+  **Note:** A peak is NA if fewer than N recorded minutes are available.
 
-Recorded zeros count; missing minutes (NA) do not enter activity calculations. A peak is NA if fewer than N recorded minutes are available. A day with no records has NA activity measures.
+Recorded zeros count; missing minutes (NA) do not enter activity calculations. A day with no records has NA activity measures.
 """),
             ("Minute-by-Minute Log", final_min_by_min, "Min_by_Min", """
 One row per minute on each included day, in time order.

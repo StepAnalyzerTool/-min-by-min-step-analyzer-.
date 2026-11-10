@@ -1123,6 +1123,16 @@ elif uploaded_files:
             "Missing values are exported as NA."
         )
         downloads = [
+            ("Minute-by-Minute Log", final_min_by_min, "Min_by_Min", """
+One row per minute on each included day, in time order.
+
+- **Participant_ID, Date, and Time:** Identifies the participant and the minute in your selected timezone.
+- **Steps:** Steps recorded during that minute.
+- **0:** The source recorded zero steps.
+- **NA:** The source had no record for that minute.
+
+These minute-level values are used to calculate the daily, hourly, and red-flag summaries. Participant averages are calculated from the daily summaries. When daylight-saving adjustments apply, a skipped hour is absent and a repeated hour appears twice.
+"""),
             ("Daily Summary", final_summary, "Daily_Summaries", """
 One row per included day.
 
@@ -1145,16 +1155,6 @@ One row per included day.
   **Note:** A peak is NA if fewer than N recorded minutes are available.
 
 Recorded zeros are retained; missing minutes (NA) are excluded from activity calculations. A day with no records has NA activity measures.
-"""),
-            ("Minute-by-Minute Log", final_min_by_min, "Min_by_Min", """
-One row per minute on each included day, in time order.
-
-- **Participant_ID, Date, and Time:** Identifies the participant and the minute in your selected timezone.
-- **Steps:** Steps recorded during that minute.
-- **0:** The source recorded zero steps.
-- **NA:** The source had no record for that minute.
-
-These are the minute-level values used in the summaries. When daylight-saving adjustments apply, a skipped hour is absent and a repeated hour appears twice.
 """),
             ("Hourly Steps Summary", hourly_steps_summary, "Hourly_Steps_Summary", """
 One row per included day, with a step total for each clock hour.

@@ -1271,7 +1271,7 @@ One row per participant, summarizing the included days.
 - **Columns beginning with Percent_of_Steps_:** Percentage of all included steps recorded in each cadence band.  
   **Formula:** Percentage = steps in the band across included days ÷ total steps across those days × 100.
 
-**Notes:** Recorded zeros are included; NA values and excluded days are omitted. A mean is NA when no values are available; SD is NA with fewer than two values. Cadence-band percentages use combined step totals, not the average of daily percentages, and are NA if total steps are zero or unavailable. Mean daily active-minute cadence averages the daily cadence values, giving each contributing day equal weight.
+**Notes:** Recorded zeros are included; NA values and excluded days are omitted. A mean is NA when no values are available; SD is NA with fewer than two values. Cadence-band percentages use combined step totals, not an average of daily percentages, and are NA when total steps are zero or unavailable. Mean daily active-minute cadence is the equal-weight average of contributing days’ values.
 """),
         ]
         for title, frame, suffix, explanation in downloads:

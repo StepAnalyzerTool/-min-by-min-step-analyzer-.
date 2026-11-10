@@ -898,9 +898,9 @@ Flags are calculated for each calendar day in your selected timezone, using reco
 - **Recorded steps total zero:** At least one minute has a record, but all recorded step counts are zero.
 - **Recorded steps below 1,000:** The sum of recorded steps is less than 1,000.
 - **Steps in only one daypart:** Minutes with one or more steps occur in exactly one of four periods: Overnight (midnight–5:59 a.m.), Morning (6 a.m.–11:59 a.m.), Afternoon (noon–5:59 p.m.), or Evening (6 p.m.–11:59 p.m.).
-- **First-to-last positive minute span below 6 hours:** Fewer than 360 elapsed minutes separate the first and last minutes with steps. A day with only one step-positive minute has a span of zero; a day with none does not receive this flag. This span does not measure continuous activity or wear time.
+- **First-to-last positive minute span below 6 hours:** Fewer than 360 elapsed minutes separate the first and last minutes with steps. A day with only one step-positive minute has a span of zero; a day with none does not receive this flag.
 
-**Number of red flags** counts how many of these five criteria are met. Criteria can overlap; the count is not a validated wear-time or data-quality score.
+**Number of red flags** counts how many of these five criteria are met. Criteria can overlap.
 
 **Additional information in the Red Flag Summary**
 

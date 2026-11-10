@@ -776,138 +776,50 @@ elif uploaded_files:
         if df.empty:
             st.warning("No source records occur in this range. Outputs will mark every minute as NA.")
 
-        unique_dates = pd.date_range(analysis_start_date, analysis_end_date, freq="D", tz=analysis_timezone)
-        participant_full_timeseries = []
+        preview_context = repr((batch_hash.hexdigest(), manual_participant_id, timezone_description,
+                                analysis_start_date, analysis_end_date))
+        if st.session_state.get('preview_context') != preview_context:
+            unique_dates = pd.date_range(analysis_start_date, analysis_end_date, freq="D", tz=analysis_timezone)
+            participant_full_timeseries = []
 
-        # 2. RECONSTRUCT CONTINUOUS TIMELINES PER DAY
-        for date in unique_dates:
-            if pd.isna(date):
-                continue
+            # 2. RECONSTRUCT CONTINUOUS TIMELINES PER DAY
+            for date in unique_dates:
+                if pd.isna(date):
+                    continue
 
-            daily_index = pd.date_range(
-                start=date,
-                end=date + pd.DateOffset(days=1) - pd.Timedelta(minutes=1),
-                freq='min',
-                tz=analysis_timezone
-            )
+                daily_index = pd.date_range(
+                    start=date,
+                    end=date + pd.DateOffset(days=1) - pd.Timedelta(minutes=1),
+                    freq='min',
+                    tz=analysis_timezone
+                )
 
-            day_data = df[df.index.normalize() == date]
-            day_data = day_data[~day_data.index.duplicated(keep='first')]
-            day_full = day_data.reindex(daily_index)
+                day_data = df[df.index.normalize() == date]
+                day_data = day_data[~day_data.index.duplicated(keep='first')]
+                day_full = day_data.reindex(daily_index)
 
-            day_full['Participant_ID'] = manual_participant_id
-            day_full['Date'] = date.date()
-            day_full['Time'] = day_full.index.time
-            day_full = day_full.rename(columns={'value': 'Steps'})
+                day_full['Participant_ID'] = manual_participant_id
+                day_full['Date'] = date.date()
+                day_full['Time'] = day_full.index.time
+                day_full = day_full.rename(columns={'value': 'Steps'})
 
-            participant_full_timeseries.append(day_full)
+                participant_full_timeseries.append(day_full)
 
-        part_df = pd.concat(participant_full_timeseries)
+            part_df = pd.concat(participant_full_timeseries)
 
-        # Add hour column for hourly CSV output
-        part_df['Hour'] = part_df.index.hour
+            # Add hour column for hourly CSV output
+            part_df['Hour'] = part_df.index.hour
 
-        # 3. DEFINE TUDOR-LOCKE CADENCE BINS AND INTENSITY CLASSIFICATIONS
+            red_flag_summary = build_red_flag_summary(part_df, manual_participant_id)
+
+            st.session_state['preview_data'] = (part_df, red_flag_summary)
+            st.session_state['preview_context'] = preview_context
+        part_df, red_flag_summary = (
+            frame.copy() for frame in st.session_state['preview_data']
+        )
+
+        # Preview only. Full activity analysis is deferred until downloads are requested.
         bins = [-1, b1-1, b2-1, b3-1, b4-1, b5-1, b6-1, b7-1, 9999]
-
-        mpa_label = f'MPA ({mpa}-{vpa-1} spm)'
-        vpa_label = f'VPA ({vpa}+ spm)'
-
-        labels = [
-            'Non-movement (0 spm)',
-            f'Incidental movement ({b1}-{b2-1} spm)',
-            f'Sporadic movement ({b2}-{b3-1} spm)',
-            f'Purposeful steps ({b3}-{b4-1} spm)',
-            f'Slow walking ({b4}-{b5-1} spm)',
-            f'Medium walking ({b5}-{b6-1} spm)',
-            f'Brisk walking ({b6}-{b7-1} spm)',
-            f'Faster locomotion ({b7}+ spm)'
-        ]
-
-        part_df['Cadence_Band'] = pd.cut(part_df['Steps'], bins=bins, labels=labels)
-        part_df['Intensity_Category'] = pd.Series('Below MPA threshold', index=part_df.index).where(part_df['Steps'].notna())
-        part_df.loc[
-            (part_df['Steps'] >= mpa) & (part_df['Steps'] < vpa),
-            'Intensity_Category'
-        ] = mpa_label
-        part_df.loc[part_df['Steps'] >= vpa, 'Intensity_Category'] = vpa_label
-
-        # 4. CALCULATE DAILY SUMMARIES
-        summary = part_df.groupby(
-            ['Participant_ID', 'Date', 'Cadence_Band'], observed=False
-        ).size().unstack(fill_value=0)
-        summary = summary.reindex(columns=labels, fill_value=0)
-
-        daily_intensity = part_df.groupby(['Participant_ID', 'Date']).agg(
-            Total_MPA_Minutes=(
-                'Steps', lambda values: ((values >= mpa) & (values < vpa)).sum()
-            ),
-            Total_VPA_Minutes=('Steps', lambda values: (values >= vpa).sum()),
-            Total_Step_Positive_Minutes=('Steps', lambda values: (values > 0).sum()),
-            Total_MPA_Steps=('Steps', lambda values: values[(values >= mpa) & (values < vpa)].sum()),
-            Total_VPA_Steps=('Steps', lambda values: values[values >= vpa].sum())
-        )
-        for column in ('Total_Step_Positive_Minutes', 'Total_MPA_Steps', 'Total_VPA_Steps'):
-            summary[column] = daily_intensity[column]
-        summary['Total_MVPA_Steps'] = summary['Total_MPA_Steps'] + summary['Total_VPA_Steps']
-        summary['Total_MPA_Minutes'] = daily_intensity['Total_MPA_Minutes']
-        summary['Total_VPA_Minutes'] = daily_intensity['Total_VPA_Minutes']
-        summary['Total_MVPA_Minutes'] = summary['Total_MPA_Minutes'] + summary['Total_VPA_Minutes']
-        summary['Total_Daily_Steps'] = part_df.groupby(['Participant_ID', 'Date'])['Steps'].sum(min_count=1)
-        # Step sums use the same cadence assignments as the minute counts.
-        band_steps = part_df.groupby(
-            ['Participant_ID', 'Date', 'Cadence_Band'], observed=False
-        )['Steps'].sum().unstack(fill_value=0).reindex(columns=labels, fill_value=0)
-        band_step_columns = [f'Steps: {label}' for label in labels]
-        band_steps.columns = band_step_columns
-        summary = summary.join(band_steps)
-        peak_columns = []
-        daily_steps = part_df.groupby(['Participant_ID', 'Date'])['Steps']
-        for minutes in (1, 30, 60):
-            column = f'Peak_{minutes}_Minute_Cadence_spm'
-            peak_columns.append(column)
-            summary[column] = daily_steps.agg(
-                lambda values, n=minutes: peak_cadence(values, n)
-            )
-
-        coverage = part_df.groupby(['Participant_ID', 'Date'])['Steps'].agg(
-            Expected_Minutes='size', Recorded_Minutes='count'
-        )
-        coverage['Missing_Minutes'] = coverage['Expected_Minutes'] - coverage['Recorded_Minutes']
-        summary.loc[coverage['Recorded_Minutes'].eq(0), :] = float('nan')
-        summary = summary.join(coverage)
-
-        column_order = [
-            'Total_Daily_Steps',
-            'Expected_Minutes',
-            'Recorded_Minutes',
-            'Missing_Minutes',
-            'Total_Step_Positive_Minutes',
-            'Total_MPA_Minutes',
-            'Total_MPA_Steps',
-            'Total_VPA_Minutes',
-            'Total_VPA_Steps',
-            'Total_MVPA_Minutes',
-            'Total_MVPA_Steps',
-        ] + peak_columns + [column for pair in zip(labels, band_step_columns) for column in pair]
-
-        final_summary = summary[column_order].reset_index()
-        final_summary = final_summary.sort_values(by='Date')
-
-        final_min_by_min = part_df[
-            [
-                'Participant_ID',
-                'Date',
-                'Time',
-                'Steps'
-            ]
-        ].copy()
-
-        # 5. BUILD HOURLY AND RED-FLAG CSV OUTPUTS
-        hourly_steps_summary = build_hourly_steps_summary(part_df)
-        red_flag_summary = build_red_flag_summary(part_df, manual_participant_id)
-
-        # 6. OPTIONAL REVIEW. Calculations above support review; CSVs are prepared only on request.
         # Reset decisions for different input records, participant, timezone, dates or thresholds.
         review_context = hashlib.sha256(
             pd.util.hash_pandas_object(df[['value']], index=True).values.tobytes()
@@ -1038,19 +950,21 @@ elif uploaded_files:
                         st.markdown(f"**{row['Date']}** — {row['Flag_Reasons']}")
                 st.write("Check **Exclude** to remove a day from analysis outputs. The Red Flag Summary retains all dates.")
                 st.caption("To add an optional reason, double-click its cell, type your note, and press Enter.")
-                edited_review = st.data_editor(
-                    review, hide_index=True, use_container_width=True,
-                    key=f"day_review_v5_{review_context}_{day_revision}",
-                    disabled=True if include_all else [
-                        c for c in review.columns if c not in ('Exclude_from_Analysis', 'Exclusion_Reason')
-                    ],
-                    column_config={
-                        'Exclude_from_Analysis': st.column_config.CheckboxColumn('Exclude', width='small'),
-                        'Date': st.column_config.DateColumn('Date', format='YYYY-MM-DD', width='small'),
-                        'Flag_Reasons': st.column_config.TextColumn('Red flag reasons', width='large'),
-                        'Exclusion_Reason': st.column_config.TextColumn('Exclusion reason (optional)', width='large'),
-                    }
-                )
+                with st.form(key=f"day_selection_form_{review_context}_{day_revision}"):
+                    edited_review = st.data_editor(
+                        review, hide_index=True, use_container_width=True,
+                        key=f"day_review_v5_{review_context}_{day_revision}",
+                        disabled=True if include_all else [
+                            c for c in review.columns if c not in ('Exclude_from_Analysis', 'Exclusion_Reason')
+                        ],
+                        column_config={
+                            'Exclude_from_Analysis': st.column_config.CheckboxColumn('Exclude', width='small'),
+                            'Date': st.column_config.DateColumn('Date', format='YYYY-MM-DD', width='small'),
+                            'Flag_Reasons': st.column_config.TextColumn('Red flag reasons', width='large'),
+                            'Exclusion_Reason': st.column_config.TextColumn('Exclusion reason (optional)', width='large'),
+                        }
+                    )
+                    finalize_days_clicked = st.form_submit_button("Finalize days", type="primary")
                 decisions = edited_review[['Date', 'Exclude_from_Analysis', 'Exclusion_Reason']].copy()
                 if include_all:
                     decisions['Exclude_from_Analysis'] = False
@@ -1059,7 +973,7 @@ elif uploaded_files:
                     ~decisions['Included_in_Participant_Summary'], ''
                 )
                 decisions = decisions[['Date', 'Included_in_Participant_Summary', 'Exclusion_Reason']]
-                if st.button("Finalize days", key=f"finalize_days_{review_context}_{day_revision}", type="primary"):
+                if finalize_days_clicked:
                     st.session_state['finalized_days'] = {
                         'context': review_context, 'decisions': decisions.copy(), 'choice': review_choice
                     }
@@ -1070,10 +984,9 @@ elif uploaded_files:
                     'context': review_context, 'decisions': decisions.copy(), 'choice': review_choice
                 }
                 st.rerun()
-        final_summary = final_summary.merge(decisions, on='Date', validate='one_to_one')
         red_flag_summary = red_flag_summary.merge(decisions, on='Date', validate='one_to_one')
-        included_count = int(final_summary['Included_in_Participant_Summary'].sum())
-        st.caption(f"{included_count} included day(s); {len(final_summary) - included_count} excluded day(s). Excluded dates are retained only in the Red Flag Summary.")
+        included_count = int(decisions['Included_in_Participant_Summary'].sum())
+        st.caption(f"{included_count} included day(s); {len(decisions) - included_count} excluded day(s). Excluded dates are retained only in the Red Flag Summary.")
         if included_count == 0:
             st.warning("No dates are included. Daily, minute-level, and hourly files will contain headers only. Participant means will be NA with zero contributing days; the Red Flag Summary will retain all dates.")
         # Reconfirm after any change to settings, review mode, dates, exclusions or reasons.
@@ -1090,6 +1003,106 @@ elif uploaded_files:
             st.caption("Review your choices above, then click Yes. Download files have not yet been generated for these choices.")
             st.stop()
 
+        # 3. DEFINE TUDOR-LOCKE CADENCE BINS AND INTENSITY CLASSIFICATIONS
+        bins = [-1, b1-1, b2-1, b3-1, b4-1, b5-1, b6-1, b7-1, 9999]
+
+        mpa_label = f'MPA ({mpa}-{vpa-1} spm)'
+        vpa_label = f'VPA ({vpa}+ spm)'
+
+        labels = [
+            'Non-movement (0 spm)',
+            f'Incidental movement ({b1}-{b2-1} spm)',
+            f'Sporadic movement ({b2}-{b3-1} spm)',
+            f'Purposeful steps ({b3}-{b4-1} spm)',
+            f'Slow walking ({b4}-{b5-1} spm)',
+            f'Medium walking ({b5}-{b6-1} spm)',
+            f'Brisk walking ({b6}-{b7-1} spm)',
+            f'Faster locomotion ({b7}+ spm)'
+        ]
+
+        part_df['Cadence_Band'] = pd.cut(part_df['Steps'], bins=bins, labels=labels)
+        part_df['Intensity_Category'] = pd.Series('Below MPA threshold', index=part_df.index).where(part_df['Steps'].notna())
+        part_df.loc[
+            (part_df['Steps'] >= mpa) & (part_df['Steps'] < vpa),
+            'Intensity_Category'
+        ] = mpa_label
+        part_df.loc[part_df['Steps'] >= vpa, 'Intensity_Category'] = vpa_label
+
+        # 4. CALCULATE DAILY SUMMARIES
+        summary = part_df.groupby(
+            ['Participant_ID', 'Date', 'Cadence_Band'], observed=False
+        ).size().unstack(fill_value=0)
+        summary = summary.reindex(columns=labels, fill_value=0)
+
+        daily_intensity = part_df.groupby(['Participant_ID', 'Date']).agg(
+            Total_MPA_Minutes=(
+                'Steps', lambda values: ((values >= mpa) & (values < vpa)).sum()
+            ),
+            Total_VPA_Minutes=('Steps', lambda values: (values >= vpa).sum()),
+            Total_Step_Positive_Minutes=('Steps', lambda values: (values > 0).sum()),
+            Total_MPA_Steps=('Steps', lambda values: values[(values >= mpa) & (values < vpa)].sum()),
+            Total_VPA_Steps=('Steps', lambda values: values[values >= vpa].sum())
+        )
+        for column in ('Total_Step_Positive_Minutes', 'Total_MPA_Steps', 'Total_VPA_Steps'):
+            summary[column] = daily_intensity[column]
+        summary['Total_MVPA_Steps'] = summary['Total_MPA_Steps'] + summary['Total_VPA_Steps']
+        summary['Total_MPA_Minutes'] = daily_intensity['Total_MPA_Minutes']
+        summary['Total_VPA_Minutes'] = daily_intensity['Total_VPA_Minutes']
+        summary['Total_MVPA_Minutes'] = summary['Total_MPA_Minutes'] + summary['Total_VPA_Minutes']
+        summary['Total_Daily_Steps'] = part_df.groupby(['Participant_ID', 'Date'])['Steps'].sum(min_count=1)
+        # Step sums use the same cadence assignments as the minute counts.
+        band_steps = part_df.groupby(
+            ['Participant_ID', 'Date', 'Cadence_Band'], observed=False
+        )['Steps'].sum().unstack(fill_value=0).reindex(columns=labels, fill_value=0)
+        band_step_columns = [f'Steps: {label}' for label in labels]
+        band_steps.columns = band_step_columns
+        summary = summary.join(band_steps)
+        peak_columns = []
+        daily_steps = part_df.groupby(['Participant_ID', 'Date'])['Steps']
+        for minutes in (1, 30, 60):
+            column = f'Peak_{minutes}_Minute_Cadence_spm'
+            peak_columns.append(column)
+            summary[column] = daily_steps.agg(
+                lambda values, n=minutes: peak_cadence(values, n)
+            )
+
+        coverage = part_df.groupby(['Participant_ID', 'Date'])['Steps'].agg(
+            Expected_Minutes='size', Recorded_Minutes='count'
+        )
+        coverage['Missing_Minutes'] = coverage['Expected_Minutes'] - coverage['Recorded_Minutes']
+        summary.loc[coverage['Recorded_Minutes'].eq(0), :] = float('nan')
+        summary = summary.join(coverage)
+
+        column_order = [
+            'Total_Daily_Steps',
+            'Expected_Minutes',
+            'Recorded_Minutes',
+            'Missing_Minutes',
+            'Total_Step_Positive_Minutes',
+            'Total_MPA_Minutes',
+            'Total_MPA_Steps',
+            'Total_VPA_Minutes',
+            'Total_VPA_Steps',
+            'Total_MVPA_Minutes',
+            'Total_MVPA_Steps',
+        ] + peak_columns + [column for pair in zip(labels, band_step_columns) for column in pair]
+
+        final_summary = summary[column_order].reset_index()
+        final_summary = final_summary.sort_values(by='Date')
+
+        final_min_by_min = part_df[
+            [
+                'Participant_ID',
+                'Date',
+                'Time',
+                'Steps'
+            ]
+        ].copy()
+
+        # 5. BUILD HOURLY AND RED-FLAG CSV OUTPUTS
+        hourly_steps_summary = build_hourly_steps_summary(part_df)
+
+        final_summary = final_summary.merge(decisions, on='Date', validate='one_to_one')
         participant_averages = build_participant_averages(
             final_summary, column_order, manual_participant_id, timezone_description,
             analysis_start_date, analysis_end_date

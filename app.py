@@ -1000,7 +1000,7 @@ elif uploaded_files:
         if st.button("Yes — prepare downloadable files", key=f"prepare_{output_context}", type="primary"):
             st.session_state['prepared_output_context'] = output_context
         if st.session_state.get('prepared_output_context') != output_context:
-            st.caption("Review your choices above, then click Yes. Download files have not yet been generated for these choices.")
+            st.caption("Review your choices above, then click Yes.")
             st.stop()
 
         # 3. DEFINE TUDOR-LOCKE CADENCE BINS AND INTENSITY CLASSIFICATIONS

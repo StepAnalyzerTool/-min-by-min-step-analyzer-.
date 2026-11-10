@@ -3,6 +3,8 @@ import pandas as pd
 import json
 import pytz
 import hashlib
+from datetime import datetime
+from collections import Counter
 
 st.set_page_config(page_title="The FITS Tool", layout="wide")
 st.title("The FITS Tool")
@@ -34,14 +36,35 @@ files from the **"Physical Activity"** folder in the unzipped archive.
 
 with st.expander("Step 2: Configure Settings", expanded=False):
     st.markdown("""
-The Fitbit step files use **Coordinated Universal Time (UTC)**. Use the options on the
-**left side of the page** to choose how timestamps are grouped into local days and hours:
+Use the options on the **left side of the page**:
 
-- **A. Timezone:** Select the timezone for the participant's location during data collection.
-  Indicate whether that location observes daylight saving time. If it does, the tool applies
-  the appropriate offset for each date automatically; do not change this choice just because
-  a particular date falls in winter. If it does not, the tool uses standard time throughout.
-  Choose UTC to keep the original UTC dates and times. Review and confirm the displayed settings.
+**A. Time Zone**
+
+- The Fitbit step files use **Coordinated Universal Time (UTC)**.
+- Select the timezone for the participant's location during data collection and indicate
+  whether that location observes daylight saving time. Or choose UTC to keep the original
+  UTC dates and times. Review and confirm the displayed settings.
+    """)
+    with st.expander("How timezone selections affect data analysis", expanded=False):
+        st.markdown("""
+Timezone conversion occurs before dates are selected and before daily and hourly summaries
+are calculated. It can move records to a different date or hour, changing daily totals,
+cadence summaries, flags and participant averages. The step count in each record is unchanged.
+
+- **UTC:** Keeps the original UTC dates and times, without daylight-saving adjustments.
+- **Daylight saving selected:** Uses the chosen location's historical timezone rules for each
+  record. Select this based on the location during data collection, not whether daylight
+  saving is active today. Clock-change days may be shorter or longer than 24 hours.
+- **Daylight saving not selected:** Uses the fixed standard-time UTC offset displayed under
+  A throughout the analysis. Every day has 24 hours. This offset is based on the selected
+  timezone's standard offset in the current year; check the displayed offset for historical
+  data or locations whose standard time has changed.
+
+For locations that changed their daylight-saving policy, check the setting for your data
+collection period. Changing timezone settings requires confirmation and preparing the files
+again. The selected settings are recorded in the exported files.
+        """)
+    st.markdown("""
 - **B. Participant Information:** Enter a unique Participant ID. This label will appear
   in the output files.
 - **C. Intensity Thresholds (spm):** Adjust the thresholds if your study uses different
@@ -50,11 +73,6 @@ The Fitbit step files use **Coordinated Universal Time (UTC)**. Use the options 
 - **D. Cadence Band Thresholds (spm):** Adjust the thresholds if your study uses custom
   cadence bands. Default band names and thresholds follow Tudor-Locke et al.¹
 - **E. Data Upload:** Upload the participant's step files as described in Step 3.
-
-Fitbit minute-level step timestamps are interpreted as UTC and converted to the confirmed
-participant timezone before daily and hourly summaries are calculated. Daylight-saving
-adjustments follow your selected setting. The dates available for selection may change when
-you change these settings.
     """)
 
 with st.expander("Step 3: Upload Files and Select the Analysis Dates", expanded=False):
@@ -207,28 +225,36 @@ def read_step_file(file):
 
 
 # --- SIDEBAR ---
-st.sidebar.header("A. Timezone")
-# Standard offsets for the supported timezone choices (minutes east of UTC).
-TIMEZONE_SETTINGS = {
-    "America/New_York": ("Eastern — America/New_York", -300, True),
-    "America/Chicago": ("Central — America/Chicago", -360, True),
-    "America/Denver": ("Mountain — America/Denver", -420, True),
-    "America/Los_Angeles": ("Pacific — America/Los_Angeles", -480, True),
-    "America/Phoenix": ("Arizona — America/Phoenix", -420, False),
-    "Pacific/Honolulu": ("Hawaii — Pacific/Honolulu", -600, False),
-    "UTC": ("UTC — no local-time conversion", 0, False),
-}
-st.sidebar.caption("Source step timestamps use UTC. Choose the participant's local timezone, or keep UTC.")
+st.sidebar.header("A. Time Zone")
+# UTC, followed by Americas locations (including US Hawaii), then other regions.
+american_zones = sorted(name for name in pytz.common_timezones if name.startswith('America/'))
+american_zones.append('Pacific/Honolulu')
+remaining_zones = sorted(name for name in pytz.common_timezones
+                         if name != 'UTC' and name not in american_zones
+                         and not name.startswith(('US/', 'Canada/')))
+timezone_options = ['UTC'] + american_zones + remaining_zones
+st.sidebar.markdown("""
+- The Fitbit step files use **Coordinated Universal Time (UTC)**.
+- Select the timezone for the participant's location during data collection and indicate
+  whether that location observes daylight saving time. Or choose UTC to keep the original
+  UTC dates and times. Review and confirm the displayed settings.
+""")
 timezone = st.sidebar.selectbox(
-    "Select participant timezone", list(TIMEZONE_SETTINGS),
-    format_func=lambda name: TIMEZONE_SETTINGS[name][0],
-    help="Choose the location during data collection. For locations without seasonal clock changes, turn off daylight saving below."
+    "Select participant timezone", timezone_options,
+    help="UTC is listed first, followed by Americas locations, then the rest of the world. You can type to search for a city."
 )
-_, standard_offset, seasonal_zone = TIMEZONE_SETTINGS[timezone]
+zone = pytz.timezone(timezone)
+# Subtract DST from UTC offset; this supports fractional and negative DST rules.
+offset_reference_year = datetime.now().year
+zone_probes = [zone.localize(datetime(offset_reference_year, month, 15, 12))
+               for month in range(1, 13)]
+standard_offset = Counter(int((probe.utcoffset() - probe.dst()).total_seconds() / 60)
+                          for probe in zone_probes).most_common(1)[0][0]
+seasonal_zone = any(probe.dst().total_seconds() != 0 for probe in zone_probes)
 observes_dst = st.sidebar.checkbox(
     "This location observes daylight saving time",
-    value=seasonal_zone, disabled=not seasonal_zone, key=f"observes_dst_{timezone}",
-    help="Select whether the location observes seasonal clock changes, not whether daylight saving is active today. Date-specific changes are automatic when selected."
+    value=seasonal_zone, disabled=timezone == 'UTC', key=f"observes_dst_{timezone}",
+    help="Indicate whether the location observed seasonal clock changes during data collection. Historical date-specific changes are applied when selected."
 )
 if observes_dst:
     analysis_timezone = pytz.timezone(timezone)
@@ -238,7 +264,7 @@ else:
     offset_sign = '+' if standard_offset >= 0 else '-'
     offset_hours, offset_minutes = divmod(abs(standard_offset), 60)
     timezone_description = (
-        f"{timezone}; fixed UTC{offset_sign}{offset_hours:02d}:{offset_minutes:02d}; no daylight-saving adjustments"
+        f"{timezone}; fixed UTC{offset_sign}{offset_hours:02d}:{offset_minutes:02d}; no daylight-saving adjustments (standard offset reference year {offset_reference_year})"
     )
 st.sidebar.caption(timezone_description)
 timezone_confirmed = st.sidebar.checkbox(
@@ -680,7 +706,7 @@ elif uploaded_files:
         # Reset decisions for different input records, participant, timezone, dates or thresholds.
         review_context = hashlib.sha256(
             pd.util.hash_pandas_object(df[['value']], index=True).values.tobytes()
-            + repr((manual_participant_id, timezone, observes_dst, analysis_start_date, analysis_end_date,
+            + repr((manual_participant_id, timezone_description, observes_dst, analysis_start_date, analysis_end_date,
                     mpa, vpa, bins)).encode('utf-8')
         ).hexdigest()
         review_choice = st.radio(
@@ -838,6 +864,7 @@ and do not estimate activity during missing minutes.
 
     else:
         st.error("❌ No valid Fitbit data found in the uploaded files. Please check your files and try again.")
+
 
 
 

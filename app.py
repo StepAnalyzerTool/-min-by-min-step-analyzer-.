@@ -91,7 +91,6 @@ with st.expander("Step 3: Upload Files", expanded=False):
         st.markdown("""
 - **Recorded 0:** The tool keeps the value as zero. It counts as a recorded minute with no
   steps and is included in calculations, including the zero-step cadence band and peak cadence.
-  A zero alone does not establish whether the Fitbit was worn.
 - **Missing minute:** When a minute has no record in the source file, the tool labels it
   **NA**, rather than zero. It is excluded from activity calculations but counted in
   missing-minute coverage totals. A day with no records has NA activity measures and does

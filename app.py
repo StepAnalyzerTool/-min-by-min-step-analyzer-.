@@ -662,10 +662,17 @@ elif uploaded_files:
         if confirmed_dates:
             analysis_start_date = confirmed_dates['start']
             analysis_end_date = confirmed_dates['end']
-            st.success(
-                f"✅ Confirmed dates: {analysis_start_date:%B %d, %Y} through {analysis_end_date:%B %d, %Y}"
-            )
-            if st.button("Change dates", key=f"change_dates_{date_context}_{date_revision}"):
+            confirmed_dates_col, change_dates_col = st.columns([5, 1])
+            with confirmed_dates_col:
+                st.success(
+                    f"✅ Confirmed dates: {analysis_start_date:%B %d, %Y} through {analysis_end_date:%B %d, %Y}"
+                )
+            with change_dates_col:
+                change_dates_clicked = st.button(
+                    "Change dates", key=f"change_dates_{date_context}_{date_revision}",
+                    use_container_width=True
+                )
+            if change_dates_clicked:
                 st.session_state['date_selection_draft'] = confirmed_dates
                 st.session_state.pop('confirmed_analysis_dates', None)
                 st.session_state.pop('prepared_output_context', None)

@@ -242,25 +242,23 @@ def peak_cadence(values, minutes):
 
 
 def build_participant_averages(daily, metric_columns, participant_id, timezone, start, end):
-    """Equal-weight daily means; NA omitted separately for each numeric measure."""
+    """One participant row; equal-weight daily means with measure-specific counts."""
     included = daily.loc[daily['Included_in_Participant_Summary']]
-    rows = []
+    row = {
+        'Participant_ID': participant_id,
+        'Timezone': timezone,
+        'Analysis_Start_Date': start,
+        'Analysis_End_Date': end,
+        'Days_In_Date_Range': len(daily),
+        'Included_Days': len(included),
+        'Excluded_Days': len(daily) - len(included),
+    }
     for metric in metric_columns:
         values = included[metric]
-        rows.append({
-            'Participant_ID': participant_id,
-            'Timezone': timezone,
-            'Analysis_Start_Date': start,
-            'Analysis_End_Date': end,
-            'Days_In_Date_Range': len(daily),
-            'Included_Days': len(included),
-            'Excluded_Days': len(daily) - len(included),
-            'Measure': metric,
-            'Mean_Per_Day': values.mean(),
-            'Contributing_Days': int(values.notna().sum()),
-            'Included_Days_With_NA': int(values.isna().sum()),
-        })
-    return pd.DataFrame(rows)
+        row[f'{metric}_Mean_Per_Day'] = values.mean()
+        row[f'{metric}_Contributing_Days'] = int(values.notna().sum())
+        row[f'{metric}_Included_Days_With_NA'] = int(values.isna().sum())
+    return pd.DataFrame([row])
 
 
 def upload_error_details(error):
@@ -1189,18 +1187,17 @@ One row per selected day, including excluded days and their reasons.
 **Notes:** Flags prompt review; they do not automatically exclude days. Zero-step periods do not add to the flag count. Missing minutes break a zero-step stretch. A stretch crossing midnight can count on both days.
 """),
             ("Participant Averages", participant_averages, "Participant_Averages", """
-One row per daily measure, averaged across included days.
+One row per participant, with a separate average for each daily measure.
 
 - **Participant_ID, Timezone, Analysis_Start_Date, and Analysis_End_Date:** Identifies the participant and analysis settings.
-- **Measure:** The daily measure being averaged: total steps; step-positive minutes (minutes with at least one step); MPA, VPA, and MVPA minutes; weighted MVPA minutes (MPA + 2 × VPA); MPA, VPA, and MVPA steps; minutes and steps in each of the eight cadence bands; and peak 1-, 30-, and 60-minute cadence.
-- **Mean_Per_Day:** The average of the available daily values.  
+- **Days_In_Date_Range, Included_Days, and Excluded_Days:** Reports your date selections once.
+- **Columns ending in _Mean_Per_Day:** The average for the measure named in the column. Measures include total steps; step-positive minutes (minutes with at least one step); MPA, VPA, and MVPA minutes; weighted MVPA minutes (MPA + 2 × VPA); MPA, VPA, and MVPA steps; minutes and steps in each of the eight cadence bands; and peak 1-, 30-, and 60-minute cadence.  
   **Formula:** Mean = sum of included daily values ÷ contributing days.
-- **Contributing_Days:** Included days with a value for that measure.
-- **Included_Days_With_NA:** Included days without a value for that measure.  
+- **Columns ending in _Contributing_Days:** Included days with a value for that measure.
+- **Columns ending in _Included_Days_With_NA:** Included days without a value for that measure.  
   **Formula:** Included days with NA = included days − contributing days.
-- **Days_In_Date_Range, Included_Days, and Excluded_Days:** Reports your date selections.
 
-**Notes:** Recorded zeros are included in averages; NA values and excluded days are omitted. For example, 4,000, 6,000, and NA average to 5,000 across two contributing days. If no day contributes, the mean is NA.
+**Notes:** Each mean is followed by its two day-count columns. Counts can differ across measures. Recorded zeros are included in averages; NA values and excluded days are omitted. For example, 4,000, 6,000, and NA average to 5,000 across two contributing days. If no day contributes, the mean is NA.
 """),
         ]
         for title, frame, suffix, explanation in downloads:

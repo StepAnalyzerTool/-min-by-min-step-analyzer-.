@@ -233,12 +233,8 @@ remaining_zones = sorted(name for name in pytz.common_timezones
                          if name != 'UTC' and name not in american_zones
                          and not name.startswith(('US/', 'Canada/')))
 timezone_options = ['UTC'] + american_zones + remaining_zones
-st.sidebar.markdown("""
-- The Fitbit step files use **Coordinated Universal Time (UTC)**.
-- Select the timezone for the participant's location during data collection and indicate
-  whether that location observes daylight saving time. Or choose UTC to keep the original
-  UTC dates and times. Review and confirm the displayed settings.
-""")
+st.sidebar.caption("Files use UTC. Select the participant’s time zone, or keep UTC.")
+
 timezone = st.sidebar.selectbox(
     "Select participant timezone", timezone_options,
     help="UTC is listed first, followed by Americas locations, then the rest of the world. You can type to search for a city."
@@ -266,7 +262,11 @@ else:
     timezone_description = (
         f"{timezone}; fixed UTC{offset_sign}{offset_hours:02d}:{offset_minutes:02d}; no daylight-saving adjustments (standard offset reference year {offset_reference_year})"
     )
-st.sidebar.caption(timezone_description)
+st.sidebar.caption(
+    f"{timezone} · automatic daylight-saving adjustments"
+    if observes_dst else
+    f"Fixed UTC{offset_sign}{offset_hours:02d}:{offset_minutes:02d} · no daylight-saving adjustments"
+)
 timezone_confirmed = st.sidebar.checkbox(
     "I confirm the timezone and daylight-saving settings above",
     value=False, key=f"timezone_confirmed_{timezone}_{observes_dst}"

@@ -889,7 +889,6 @@ elif uploaded_files:
                 st.info("Uncheck Include all dates to edit exclusions and reasons.")
             else:
                 st.write("Check **Exclude** to remove a day from analysis outputs. The Red Flag Summary retains all dates.")
-                st.caption("To add an optional reason, double-click its cell, type your note, and press Enter.")
             with st.expander("About red flags and exclusions", expanded=False):
                 st.markdown("""
 - Flags suggest days to review; they do not establish nonwear or automatically exclude days.
@@ -923,6 +922,7 @@ elif uploaded_files:
                     st.write("No dates meet the current red flag criteria.")
                 for _, row in flagged.iterrows():
                     st.markdown(f"**{row['Date']}** — {row['Flag_Reasons']}")
+            st.caption("To add an optional reason, double-click its cell, type your note, and press Enter.")
             edited_review = st.data_editor(
                 review, hide_index=True, use_container_width=True,
                 key=f"day_review_v4_{review_context}_{include_all}",

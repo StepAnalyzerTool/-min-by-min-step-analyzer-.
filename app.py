@@ -225,6 +225,7 @@ def read_step_file(file):
 
 
 # --- SIDEBAR ---
+st.sidebar.caption('See Step 2 under "How to Use This Tool".')
 st.sidebar.header("A. Time Zone")
 # Representative regions preserve their own historical timezone and DST rules.
 TIMEZONE_CHOICES = {

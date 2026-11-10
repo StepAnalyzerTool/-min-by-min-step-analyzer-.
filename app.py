@@ -1173,9 +1173,14 @@ days. If no included day has a value, the mean is NA.
                     use_container_width=True
                 )
             with about_col:
-                with st.expander("About"):
-                    st.markdown(f"**{title}**")
-                    st.markdown(explanation)
+                about_key = f"about_download_{suffix}"
+                about_open = st.session_state.get(about_key, False)
+                if st.button("About ▴" if about_open else "About ▾", key=f"toggle_{about_key}"):
+                    st.session_state[about_key] = not about_open
+                    st.rerun()
+            if st.session_state.get(about_key, False):
+                st.markdown(f"**{title}**")
+                st.markdown(explanation)
 
     else:
         st.error("❌ No valid Fitbit data found in the uploaded files. Please check your files and try again.")

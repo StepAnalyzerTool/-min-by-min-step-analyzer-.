@@ -34,7 +34,7 @@ files from the **"Physical Activity"** folder in the unzipped archive.
 
 with st.expander("Step 2: Configure Settings", expanded=False):
     st.markdown("""
-Use the options on the **left side of the page**, labeled **A–E**:
+Use the options on the **left side of the page**:
 
 - **A. Timezone:** Select the timezone that matches the participant's location during
   data collection. Review the displayed timezone and check the confirmation box.

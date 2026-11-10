@@ -167,11 +167,6 @@ To prevent data from one participant from carrying over to the next,
 This clears the session and fully resets all settings.
     """)
 
-st.markdown("""
-⚠️ *This tool does not store, save, or transmit any uploaded data. All files are 
-processed temporarily and deleted automatically when the browser is refreshed or closed.*
-""")
-
 with st.expander("References for Default Settings", expanded=False):
     st.markdown("""
 ¹ Tudor-Locke, C., Camhi, S. M., Leonardi, C., Johnson, W. D.,

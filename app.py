@@ -109,13 +109,18 @@ with st.expander("Step 3: Upload Files", expanded=False):
 
 with st.expander("Step 4: Select the Analysis Dates", expanded=False):
     st.markdown("""
-- After files are read and timestamps are converted to your selected timezone, the tool displays the earliest and latest available dates. Select your analysis start and end dates, then confirm the range. The controls collapse into a green **Confirmed dates** box. Select **Change dates** to reopen them.
-- Choose whether to **review red flags and/or exclude individual days**:
-  - **Yes:** Check **Exclude** beside dates you want to omit from participant averages and optionally enter a reason. **Include all dates** overrides individual exclusions.
-  - **No:** All dates are included and the on-screen review is skipped. The Red Flag Summary is still provided as a download.
-- Flags prompt review; they do not establish nonwear or automatically exclude dates. Define and report your study's inclusion criteria.
-- Exclusions affect only **Participant Averages**. Daily and detailed exports retain the full date range. The Daily and Red Flag summaries record your inclusion decisions and reasons.
+- Select and confirm your analysis start and end dates. Use **Change dates** to revise them.
+- Choose whether to **review red flags and/or exclude individual days**. If Yes, check **Exclude** beside any dates you want to omit and optionally enter a reason.
+- Exclusions affect only **Participant Averages**. All other files retain the full selected date range.
     """)
+    with st.expander("More about dates, red flags, and exclusions", expanded=False):
+        st.markdown("""
+- Available dates reflect your selected timezone.
+- Red flags identify days that may warrant review. They do not establish nonwear or automatically exclude dates. Use and report your study's inclusion criteria.
+- **Include all dates** overrides individual exclusions. Choosing **No** to the review question also includes all dates and skips the on-screen review.
+- A **Red Flag Summary** is provided whether or not you review flags on screen.
+- The **Daily Summary** and **Red Flag Summary** record inclusion decisions and exclusion reasons.
+        """)
 
 with st.expander("Step 5: Generate the Summary Files", expanded=False):
     st.markdown("""

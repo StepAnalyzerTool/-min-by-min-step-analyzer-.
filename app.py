@@ -79,7 +79,7 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     Step-positive minutes are recorded minutes with more than zero steps.
     Step-only records are not used to estimate wear time.
 
-    **Additional daily calculations:** Steps within a cadence band are the sum of
+    MPA steps sum counts in minutes at or above the MPA threshold but below VPA.\n    VPA steps sum counts in minutes at or above VPA. MVPA steps are MPA plus VPA steps.\n    These are recorded-step totals, not estimates for missing minutes.\n\n    **Additional daily calculations:** Steps within a cadence band are the sum of
     recorded step counts for minutes in that band. Peak 1-, 30-, and 60-minute
     cadence are the means of the highest 1, 30, or 60 recorded minute-level step
     counts, respectively (steps/min). These minutes need not be consecutive.
@@ -91,7 +91,7 @@ with st.expander("📋 How to Use This Tool", expanded=True):
     [doi:10.5281/zenodo.7858094](https://doi.org/10.5281/zenodo.7858094)).
 
     Four output files are provided:
-    - 📄 **Daily Summary (CSV):** Total steps; minutes and steps in each cadence band; MPA, VPA, and total MVPA minutes; and peak 1-, 30-, and 60-minute cadence per calendar day
+    - 📄 **Daily Summary (CSV):** Total steps; minutes and steps in each cadence band; step-positive minutes; MPA, VPA, and total MVPA minutes and steps; and peak 1-, 30-, and 60-minute cadence per calendar day
     - 📄 **Minute-by-Minute Log (CSV):** A complete chronological record of the total steps recorded in each minute
     - 📊 **Hourly Steps Summary (CSV):** Total steps recorded in each hour of the day
     - 🚩 **Red Flag Summary (CSV):** Daily and daypart steps, step-positive minutes,
@@ -559,8 +559,14 @@ elif uploaded_files:
             Total_MPA_Minutes=(
                 'Steps', lambda values: ((values >= mpa) & (values < vpa)).sum()
             ),
-            Total_VPA_Minutes=('Steps', lambda values: (values >= vpa).sum())
+            Total_VPA_Minutes=('Steps', lambda values: (values >= vpa).sum()),
+            Total_Step_Positive_Minutes=('Steps', lambda values: (values > 0).sum()),
+            Total_MPA_Steps=('Steps', lambda values: values[(values >= mpa) & (values < vpa)].sum()),
+            Total_VPA_Steps=('Steps', lambda values: values[values >= vpa].sum())
         )
+        for column in ('Total_Step_Positive_Minutes', 'Total_MPA_Steps', 'Total_VPA_Steps'):
+            summary[column] = daily_intensity[column]
+        summary['Total_MVPA_Steps'] = summary['Total_MPA_Steps'] + summary['Total_VPA_Steps']
         summary['Total_MPA_Minutes'] = daily_intensity['Total_MPA_Minutes']
         summary['Total_VPA_Minutes'] = daily_intensity['Total_VPA_Minutes']
         summary['Total_MVPA_Minutes'] = summary['Total_MPA_Minutes'] + summary['Total_VPA_Minutes']
@@ -593,9 +599,13 @@ elif uploaded_files:
             'Expected_Minutes',
             'Recorded_Minutes',
             'Missing_Minutes',
+            'Total_Step_Positive_Minutes',
             'Total_MPA_Minutes',
+            'Total_MPA_Steps',
             'Total_VPA_Minutes',
+            'Total_VPA_Steps',
             'Total_MVPA_Minutes',
+            'Total_MVPA_Steps',
         ] + peak_columns + [column for pair in zip(labels, band_step_columns) for column in pair]
 
         final_summary = summary[column_order].reset_index()

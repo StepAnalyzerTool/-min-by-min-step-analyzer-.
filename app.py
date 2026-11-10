@@ -233,7 +233,7 @@ def read_step_file(file):
 
 # --- SIDEBAR ---
 st.sidebar.caption('See Step 2 under "How to Use This Tool".')
-st.sidebar.header("A. Time Zone")
+st.sidebar.subheader("A. Time Zone")
 # Representative regions preserve their own historical timezone and DST rules.
 TIMEZONE_CHOICES = {
     "UTC": "UTC — keep original timestamps",
@@ -313,14 +313,14 @@ timezone_confirmed = st.sidebar.checkbox(
     value=False, key=f"timezone_confirmed_{timezone}_{observes_dst}"
 )
 
-st.sidebar.header("B. Participant Information")
+st.sidebar.subheader("B. Participant Information")
 manual_participant_id = st.sidebar.text_input("Enter Participant ID", value="Participant_1")
 
-st.sidebar.header("C. Intensity Thresholds (spm)")
+st.sidebar.subheader("C. Intensity Thresholds (spm)")
 mpa = st.sidebar.number_input("MPA (Moderate Physical Activity) lower limit", value=100)
 vpa = st.sidebar.number_input("VPA (Vigorous Physical Activity) lower limit", value=130)
 
-st.sidebar.header("D. Cadence Band Thresholds (spm)")
+st.sidebar.subheader("D. Cadence Band Thresholds (spm)")
 b1 = st.sidebar.number_input("Incidental movement lower limit", value=1)
 b2 = st.sidebar.number_input("Sporadic movement lower limit", value=20)
 b3 = st.sidebar.number_input("Purposeful steps lower limit", value=40)
@@ -329,7 +329,7 @@ b5 = st.sidebar.number_input("Medium walking lower limit", value=80)
 b6 = st.sidebar.number_input("Brisk walking lower limit", value=100)
 b7 = st.sidebar.number_input("Faster locomotion/ambulation lower limit", value=120)
 
-st.sidebar.header("E. Data Upload")
+st.sidebar.subheader("E. Data Upload")
 uploaded_files = st.sidebar.file_uploader(
     "Upload Fitbit JSON or Google Takeout steps CSV files",
     type=['json', 'csv'],

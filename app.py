@@ -255,9 +255,19 @@ def build_participant_averages(daily, metric_columns, participant_id, timezone, 
     }
     for metric in metric_columns:
         values = included[metric]
-        row[f'{metric}_Mean_Per_Day'] = values.mean()
-        row[f'{metric}_Contributing_Days'] = int(values.notna().sum())
-        row[f'{metric}_Included_Days_With_NA'] = int(values.isna().sum())
+        if metric == 'Total_Daily_Steps':
+            measure_name = 'Steps'
+        elif metric.startswith('Total_'):
+            measure_name = metric[len('Total_'):]
+        elif metric.startswith('Steps: '):
+            measure_name = 'Steps_' + metric[len('Steps: '):]
+        elif metric.startswith('Peak_'):
+            measure_name = metric
+        else:
+            measure_name = 'Minutes_' + metric
+        row[f'Mean_Daily_{measure_name}'] = values.mean()
+        row[f'{measure_name}_Contributing_Days'] = int(values.notna().sum())
+        row[f'{measure_name}_Included_Days_With_NA'] = int(values.isna().sum())
     return pd.DataFrame([row])
 
 
@@ -1191,7 +1201,7 @@ One row per participant, with a separate average for each daily measure.
 
 - **Participant_ID, Timezone, Analysis_Start_Date, and Analysis_End_Date:** Identifies the participant and analysis settings.
 - **Days_In_Date_Range, Included_Days, and Excluded_Days:** Reports your date selections once.
-- **Columns ending in _Mean_Per_Day:** The average for the measure named in the column. Measures include total steps; step-positive minutes (minutes with at least one step); MPA, VPA, and MVPA minutes; weighted MVPA minutes (MPA + 2 × VPA); MPA, VPA, and MVPA steps; minutes and steps in each of the eight cadence bands; and peak 1-, 30-, and 60-minute cadence.  
+- **Columns beginning with Mean_Daily_:** The daily average for the named measure, such as **Mean_Daily_Steps**, **Mean_Daily_Step_Positive_Minutes**, or **Mean_Daily_Weighted_MVPA_Minutes**. Measures include total steps; step-positive minutes (minutes with at least one step); MPA, VPA, and MVPA minutes; weighted MVPA minutes (MPA + 2 × VPA); MPA, VPA, and MVPA steps; minutes and steps in each of the eight cadence bands; and peak 1-, 30-, and 60-minute cadence.  
   **Formula:** Mean = sum of included daily values ÷ contributing days.
 - **Columns ending in _Contributing_Days:** Included days with a value for that measure.
 - **Columns ending in _Included_Days_With_NA:** Included days without a value for that measure.  

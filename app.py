@@ -111,7 +111,7 @@ with st.expander("Step 4: Select the Analysis Dates", expanded=False):
     st.markdown("""
 - Select and confirm your analysis start and end dates. Use **Change dates** to revise them.
 - Choose whether to **review red flags and/or exclude individual days**. If Yes, check **Exclude** beside any dates you want to omit and optionally enter a reason.
-- Exclusions affect only **Participant Averages**. All other files retain the full selected date range.
+- Excluded dates are removed from the daily, minute-level, and hourly files and from participant averages. The **Red Flag Summary** retains every date.
     """)
     with st.expander("More about dates, red flags, and exclusions", expanded=False):
         st.markdown("""
@@ -119,7 +119,7 @@ with st.expander("Step 4: Select the Analysis Dates", expanded=False):
 - Red flags identify days that may warrant review. They do not establish nonwear or automatically exclude dates. Use and report your study's inclusion criteria.
 - **Include all dates** overrides individual exclusions. Choosing **No** to the review question also includes all dates and skips the on-screen review.
 - A **Red Flag Summary** is provided whether or not you review flags on screen.
-- The **Daily Summary** and **Red Flag Summary** record inclusion decisions and exclusion reasons.
+- The **Red Flag Summary** records inclusion decisions and exclusion reasons for every date in the selected range.
         """)
 
 with st.expander("Step 5: Generate the Summary Files", expanded=False):
@@ -883,16 +883,16 @@ elif uploaded_files:
             st.subheader("Red Flag Summary and Day Selection")
             st.write("Flags prompt review; they do not establish nonwear or automatically exclude days. You may exclude a day for any study-specific reason.")
             include_all = st.checkbox(
-                "Include all dates from the analysis start date through the end date in participant averages",
+                "Include all dates from the analysis start date through the end date",
                 value=False, key=f"include_all_v2_{review_context}"
             )
             if include_all:
                 st.info("Individual exclusions and notes are locked because Include all dates is checked. Uncheck it to edit the table.")
             else:
-                st.info("Check Exclude from averages beside a date to exclude it. Double-click its Exclusion reason cell to type a note, then press Enter. Dates remain included unless you check their exclusion boxes.")
+                st.info("Check Exclude beside a date to remove it from the analysis exports and participant averages. Double-click its Exclusion reason cell to type a note, then press Enter. Dates remain included unless you check their exclusion boxes.")
             st.caption(
                 "Include all dates overrides individual exclusions. "
-                "An exclusion reason is optional. The other four exports retain every date. "
+                "An exclusion reason is optional. Only the Red Flag Summary retains excluded dates and their reasons. "
                 "Missing minutes are not evidence of inactivity or nonwear."
             )
             review = red_flag_summary.copy()
@@ -907,22 +907,22 @@ elif uploaded_files:
                 lambda row: '; '.join(label for column, label in flag_labels.items()
                                       if pd.notna(row[column]) and bool(row[column])), axis=1
             )
-            review.insert(0, 'Exclude_from_Averages', False)
+            review.insert(0, 'Exclude_from_Analysis', False)
             review.insert(1, 'Exclusion_Reason', '')
             leading_columns = [
-                'Exclude_from_Averages', 'Date', 'Exclusion_Reason', 'Flag_Reasons',
+                'Exclude_from_Analysis', 'Date', 'Exclusion_Reason', 'Flag_Reasons',
                 'Total_Steps', 'Recorded_Minutes', 'Missing_Minutes',
                 'Total_Step_Positive_Minutes', 'Number_of_Red_Flags',
             ]
             review = review[leading_columns]
             edited_review = st.data_editor(
                 review, hide_index=True, use_container_width=True,
-                key=f"day_review_v3_{review_context}_{include_all}",
+                key=f"day_review_v4_{review_context}_{include_all}",
                 disabled=True if include_all else [
-                    c for c in review.columns if c not in ('Exclude_from_Averages', 'Exclusion_Reason')
+                    c for c in review.columns if c not in ('Exclude_from_Analysis', 'Exclusion_Reason')
                 ],
                 column_config={
-                    'Exclude_from_Averages': st.column_config.CheckboxColumn('Exclude', width='small'),
+                    'Exclude_from_Analysis': st.column_config.CheckboxColumn('Exclude', width='small'),
                     'Date': st.column_config.DateColumn('Date', format='YYYY-MM-DD', width='small'),
                     'Flag_Reasons': st.column_config.TextColumn('Red flag reasons', width='large'),
                     'Exclusion_Reason': st.column_config.TextColumn('Exclusion reason (optional)', width='large'),
@@ -934,10 +934,10 @@ elif uploaded_files:
                     st.write("No dates meet the current red flag criteria.")
                 for _, row in flagged.iterrows():
                     st.markdown(f"**{row['Date']}** — {row['Flag_Reasons']}")
-            decisions = edited_review[['Date', 'Exclude_from_Averages', 'Exclusion_Reason']].copy()
+            decisions = edited_review[['Date', 'Exclude_from_Analysis', 'Exclusion_Reason']].copy()
             if include_all:
-                decisions['Exclude_from_Averages'] = False
-            decisions['Included_in_Participant_Summary'] = ~decisions['Exclude_from_Averages'].fillna(False).astype(bool)
+                decisions['Exclude_from_Analysis'] = False
+            decisions['Included_in_Participant_Summary'] = ~decisions['Exclude_from_Analysis'].fillna(False).astype(bool)
             decisions['Exclusion_Reason'] = decisions['Exclusion_Reason'].fillna('').where(
                 ~decisions['Included_in_Participant_Summary'], ''
             )
@@ -947,9 +947,9 @@ elif uploaded_files:
         final_summary = final_summary.merge(decisions, on='Date', validate='one_to_one')
         red_flag_summary = red_flag_summary.merge(decisions, on='Date', validate='one_to_one')
         included_count = int(final_summary['Included_in_Participant_Summary'].sum())
-        st.caption(f"{included_count} included day(s); {len(final_summary) - included_count} excluded day(s). Exclusions affect participant averages only.")
+        st.caption(f"{included_count} included day(s); {len(final_summary) - included_count} excluded day(s). Excluded dates are retained only in the Red Flag Summary.")
         if included_count == 0:
-            st.warning("No dates are included. Participant means will be NA with zero contributing days.")
+            st.warning("No dates are included. Daily, minute-level, and hourly files will contain headers only. Participant means will be NA with zero contributing days; the Red Flag Summary will retain all dates.")
         # Reconfirm after any change to settings, review mode, dates, exclusions or reasons.
         output_context = hashlib.sha256(
             (review_context + review_choice).encode('utf-8')
@@ -968,13 +968,21 @@ elif uploaded_files:
             final_summary, column_order, manual_participant_id, timezone_description,
             analysis_start_date, analysis_end_date
         )
+        # Build averages before filtering so selection counts retain the full date range.
+        included_dates = final_summary.loc[
+            final_summary['Included_in_Participant_Summary'], 'Date'
+        ]
+        final_summary = final_summary.loc[final_summary['Date'].isin(included_dates)].copy()
+        final_min_by_min = final_min_by_min.loc[final_min_by_min['Date'].isin(included_dates)].copy()
+        hourly_steps_summary = hourly_steps_summary.loc[hourly_steps_summary['Date'].isin(included_dates)].copy()
+        # The red-flag export remains the complete audit of dates and exclusion reasons.
         for output_frame in (final_summary, final_min_by_min, hourly_steps_summary, red_flag_summary):
             output_frame['Analysis_Timezone'] = timezone_description
             output_frame['Daylight_Saving_Observed'] = observes_dst
         st.success("Your five analysis files are ready.")
         st.caption(
-            f"Dates are based on {timezone_description}. Daily and detailed outputs retain the full selected range; "
-            "only participant averages use your day exclusions. Missing values are exported as NA."
+            f"Dates are based on {timezone_description}. Excluded dates are retained only in the Red Flag Summary. "
+            "Missing values are exported as NA."
         )
         downloads = [
             ("Daily Summary", final_summary, "Daily_Summaries", """
@@ -984,18 +992,18 @@ MPA is at least the selected MPA threshold and below VPA; VPA is at least the VP
 MVPA combines MPA and VPA. Band steps sum the recorded counts within each band.
 Peak cadence averages the highest N recorded minute counts, which need not be consecutive.
 A peak is NA if fewer than N recorded minutes exist. Recorded zeros remain eligible.
-All dates remain, with inclusion decisions and exclusion reasons.
+Only included dates appear in this file. Exclusion decisions and reasons are retained in the Red Flag Summary.
 """),
             ("Minute-by-Minute Log", final_min_by_min, "Min_by_Min", """
 Participant ID, local date, local time and steps for every minute in the selected range.
 Absent records are NA; explicitly recorded zeros stay zero. Days follow the selected timezone,
-with daylight-saving changes only when enabled. Excluded dates remain in this file.
+with daylight-saving changes only when enabled. Excluded dates are removed from this file.
 """),
             ("Hourly Steps Summary", hourly_steps_summary, "Hourly_Steps_Summary", """
 Recorded step totals for each local clock hour, with recorded- and missing-minute counts.
 Hours with no records have NA totals. A repeated daylight-saving hour is combined under its
 clock-hour label when daylight-saving adjustments are enabled. With adjustments disabled,
-every selected day has 24 clock hours. Excluded dates remain in this file.
+every selected day has 24 clock hours. Excluded dates are removed from this file.
 """),
             ("Red Flag Summary", red_flag_summary, "Red_Flag_Summary", """
 Daily and daypart steps, step-positive minutes, data coverage, activity span and explicit-zero

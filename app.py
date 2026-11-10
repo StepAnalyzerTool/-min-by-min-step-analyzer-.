@@ -10,13 +10,9 @@ st.subheader("Fitbit Intensity, Timing, and Steps Tool")
 
 # --- INSTRUCTIONS SECTION ---
 st.markdown("""
-This application processes raw, minute-by-minute step data exported from Fitbit devices 
-and automatically calculates daily physical activity summaries based on step cadence bands.
-It also produces a minute-level step log, an hourly steps summary, and an exploratory
-red-flag summary designed to help researchers identify days that may warrant review for incomplete
-data coverage.
+This tool processes raw, minute-by-minute step data exported from Fitbit devices and calculates daily physical activity summaries based on user-selected cadence bands. It also produces a minute-level step log, an hourly steps summary, and a red-flag summary designed to help researchers identify days that may warrant review for incomplete data coverage.
 """)
-st.subheader("📋 How to Use This Tool")
+st.markdown("**📋 How to Use This Tool**")
 
 with st.expander("Step 1: Export Your Fitbit Data", expanded=False):
     st.markdown("""

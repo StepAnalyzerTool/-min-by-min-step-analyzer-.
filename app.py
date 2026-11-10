@@ -917,6 +917,12 @@ elif uploaded_files:
                 'Total_Step_Positive_Minutes', 'Number_of_Red_Flags',
             ]
             review = review[leading_columns]
+            with st.expander("Red Flag Summary", expanded=True):
+                flagged = review.loc[review['Flag_Reasons'].ne('')]
+                if flagged.empty:
+                    st.write("No dates meet the current red flag criteria.")
+                for _, row in flagged.iterrows():
+                    st.markdown(f"**{row['Date']}** — {row['Flag_Reasons']}")
             edited_review = st.data_editor(
                 review, hide_index=True, use_container_width=True,
                 key=f"day_review_v4_{review_context}_{include_all}",
@@ -930,12 +936,6 @@ elif uploaded_files:
                     'Exclusion_Reason': st.column_config.TextColumn('Exclusion reason (optional)', width='large'),
                 }
             )
-            with st.expander("Red Flag Summary", expanded=True):
-                flagged = review.loc[review['Flag_Reasons'].ne('')]
-                if flagged.empty:
-                    st.write("No dates meet the current red flag criteria.")
-                for _, row in flagged.iterrows():
-                    st.markdown(f"**{row['Date']}** — {row['Flag_Reasons']}")
             decisions = edited_review[['Date', 'Exclude_from_Analysis', 'Exclusion_Reason']].copy()
             if include_all:
                 decisions['Exclude_from_Analysis'] = False

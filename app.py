@@ -140,7 +140,7 @@ with st.container(key="fits-home-sample-card"):
         """)
 
 with st.container(key="fits-home-howto-card"):
-    with st.expander("📋 How to Use This Tool", expanded=False):
+    with st.expander("Tool Instructions", expanded=False):
 
 
         with st.expander("Step 1: Export Your Fitbit Data", expanded=False):

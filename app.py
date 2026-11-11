@@ -66,6 +66,18 @@ st.markdown("""
 .st-key-fits-home-howto-card [data-testid="stExpander"] summary:hover {
     background: #DCE8F4;
 }
+.st-key-fits-home-sample-card [data-testid="stExpander"] summary [data-testid="stMarkdownContainer"] p,
+.st-key-fits-home-howto-card [data-testid="stExpander"] summary [data-testid="stMarkdownContainer"] p {
+    margin: 0;
+    color: #233B55;
+    font-size: 1.12rem;
+    font-weight: 650;
+    line-height: 1.35;
+}
+.st-key-fits-home-sample-card [data-testid="stExpander"] summary [data-testid="stIconMaterial"],
+.st-key-fits-home-howto-card [data-testid="stExpander"] summary [data-testid="stIconMaterial"] {
+    font-size: 1.2rem;
+}
 .st-key-fits-home-sample-card [data-testid="stExpander"] details[open] > div,
 .st-key-fits-home-howto-card [data-testid="stExpander"] details[open] > div {
     padding: 0.35rem 0.7rem 0.6rem;

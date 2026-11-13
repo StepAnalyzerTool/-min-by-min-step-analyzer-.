@@ -41,8 +41,9 @@ st.markdown("""
 
 .st-key-fits-home-sample-card,
 .st-key-fits-home-howto-card {
-    background: #F2F6FB;
-    border: 1px solid #C9D8E8;
+    /* Let Streamlit supply the surface and text colors in either theme. */
+    background: transparent;
+    border: 1px solid rgba(128, 128, 128, 0.45);
     border-radius: 0.75rem;
     padding: 0.35rem 0.7rem;
     margin: 0.55rem 0 0.8rem;
@@ -57,19 +58,19 @@ st.markdown("""
     min-height: 3.4rem;
     padding: 0.9rem 1rem;
     border-radius: 0.55rem;
-    background: #E4EDF7;
+    background: rgba(128, 128, 128, 0.10);
     font-size: 1.12rem;
     font-weight: 650;
-    color: #233B55;
+    color: inherit;
 }
 .st-key-fits-home-sample-card [data-testid="stExpander"] summary:hover,
 .st-key-fits-home-howto-card [data-testid="stExpander"] summary:hover {
-    background: #DCE8F4;
+    background: rgba(128, 128, 128, 0.18);
 }
 .st-key-fits-home-sample-card [data-testid="stExpander"] summary [data-testid="stMarkdownContainer"] p,
 .st-key-fits-home-howto-card [data-testid="stExpander"] summary [data-testid="stMarkdownContainer"] p {
     margin: 0;
-    color: #233B55;
+    color: inherit;
     font-size: 1.12rem;
     font-weight: 650;
     line-height: 1.35;

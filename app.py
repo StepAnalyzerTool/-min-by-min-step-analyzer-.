@@ -212,7 +212,7 @@ with st.container(key="fits-home-howto-card"):
         with st.expander("Step 3: Upload Files", expanded=False):
             st.markdown("""
         - Use **E. Data Upload** on the left to upload Google Takeout steps CSV files or older Fitbit JSON files.
-        - Upload files for one participant and one data source at a time.
+        - Upload files for one participant at a time.
         - Review the accepted files and any files that could not be used. Remove or replace rejected
           files, or explicitly choose **Continue with accepted files only**. If no files are usable,
           processing stops until you supply a usable file.
